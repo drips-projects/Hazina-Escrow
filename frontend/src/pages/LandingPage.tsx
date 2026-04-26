@@ -1,533 +1,299 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { io } from "socket.io-client";
 import {
-  ArrowRight,
-  Database,
-  Shield,
-  Zap,
-  TrendingUp,
-  Lock,
-  ChevronRight,
-  Star,
-  Globe,
-  Activity,
-  Upload,
-} from "lucide-react";
-import { api, DatasetMeta } from "../lib/api";
-import { useCountUp } from "../hooks/useCountUp";
-import DatasetCard from "../components/ui/DatasetCard";
-import { DatasetCardSkeleton } from "../components/ui/SkeletonLoader";
-import clsx from "clsx";
-import { useI18n } from "../i18n";
+  getAllVaultData,
+  type TokenVaultData,
+} from "../contracts/payroll_vault";
+import {
+  getStreamsByEmployer,
+  getTokenSymbol,
+  ContractStream,
+} from "../contracts/payroll_stream";
 
-function Particle({ style }: { style: React.CSSProperties }) {
-  return (
-    <div
-      className="absolute rounded-full pointer-events-none"
-      style={{
-        width: 4,
-        height: 4,
-        background: "rgba(201,168,76,0.6)",
-        boxShadow: "0 0 8px rgba(201,168,76,0.8)",
-        animation: `float ${6 + Math.random() * 6}s ease-in-out infinite`,
-        animationDelay: `${Math.random() * 5}s`,
-        ...style,
-      }}
-    />
-  );
+/** ---------------- REQUEST DEDUP ---------------- */
+
+type CacheEntry<T> = {
+  promise: Promise<T>;
+  timestamp: number;
+};
+
+const requestCache = new Map<string, CacheEntry<any>>();
+const TTL = 2000; // 2 seconds
+
+async function dedupRequest<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const existing = requestCache.get(key);
+
+  if (existing && now - existing.timestamp < TTL) {
+    return existing.promise;
+  }
+
+  const promise = fn();
+  requestCache.set(key, { promise, timestamp: now });
+
+  try {
+    const result = await promise;
+    return result;
+  } catch (err) {
+    requestCache.delete(key);
+    throw err;
+  }
 }
 
-/* ── Animated stat card ── */
-function StatCard({
-  value,
-  label,
-  prefix = "",
-  suffix = "",
-  decimals = 0,
-  locale = "en-US",
-}: {
-  value: number;
-  label: string;
-  prefix?: string;
-  suffix?: string;
-  decimals?: number;
-  locale?: string;
-}) {
-  const animated = useCountUp(value, 2200, decimals);
-  return (
-    <div className="glass-card-gold px-8 py-6 text-center flex-1 min-w-[160px]">
-      <div className="stat-number text-3xl md:text-4xl text-gold-gradient mb-1">
-        {prefix}
-        {decimals > 0
-          ? animated.toFixed(decimals)
-          : Math.round(animated).toLocaleString(locale)}
-        {suffix}
-      </div>
-      <p className="text-sm text-foreground-muted font-body">{label}</p>
-    </div>
-  );
+/** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
+const STROOPS_PER_UNIT = 1e7;
+
+export interface Stream {
+  id: string;
+  employeeName: string;
+  employeeAddress: string;
+  flowRate: string;
+  tokenSymbol: string;
+  startDate: string;
+  endDate: string;
+  totalAmount: string;
+  totalStreamed: string;
+  status: "active" | "paused" | "completed" | "cancelled";
+  pendingAction?: "pause" | "resume" | "cancel";
 }
 
-/* ── How it works step ── */
-function Step({
-  number,
-  title,
-  desc,
-  icon: Icon,
-}: {
-  number: string;
-  title: string;
-  desc: string;
-  icon: React.ElementType;
-}) {
-  return (
-    <div className="flex flex-col items-center text-center group">
-      <div className="relative mb-6">
-        <div className="w-16 h-16 rounded-2xl bg-gold/10 border border-gold/25 flex items-center justify-center group-hover:border-gold/50 group-hover:shadow-gold transition-all duration-300">
-          <Icon className="w-7 h-7 text-gold" />
-        </div>
-        <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gold text-void text-xs font-bold font-body flex items-center justify-center">
-          {number}
-        </div>
-      </div>
-      <h3 className="font-display font-semibold text-lg text-foreground mb-2">
-        {title}
-      </h3>
-      <p className="text-sm text-foreground-muted font-body leading-relaxed max-w-[220px]">
-        {desc}
-      </p>
-    </div>
-  );
+export interface TokenBalance {
+  tokenSymbol: string;
+  balance: string;
 }
 
-export default function LandingPage() {
-  const { locale, t } = useI18n();
-  const [stats, setStats] = useState({
-    totalDatasets: 0,
-    totalQueries: 0,
-    totalUsdcEarned: 0,
-  });
-  const [featured, setFeatured] = useState<DatasetMeta[]>([]);
-  const [featuredLoading, setFeaturedLoading] = useState(true);
-  const [loaded, setLoaded] = useState(false);
-  const [statsError, setStatsError] = useState<string | null>(null);
-  const [featuredError, setFeaturedError] = useState<string | null>(null);
+export interface PayrollSummary {
+  total_disbursed: string;
+  avg_payment: string;
+  cost_by_department: Array<{
+    dept: string;
+    total: string;
+  }>;
+  headcount: number;
+  streams_active: number;
+}
 
-  useEffect(() => {
-    api
-      .getStats()
-      .then((data) => {
-        setStats(data);
-        setStatsError(null);
-      })
-      .catch((err: unknown) => {
-        setStatsError(
-          err instanceof Error ? err.message : "Failed to load statistics.",
-        );
-      });
-    api
-      .getDatasets()
-      .then((ds) => {
-        setFeatured(ds.slice(0, 3));
-        setFeaturedError(null);
-      })
-      .catch((err: unknown) => {
-        setFeaturedError(
-          err instanceof Error ? err.message : "Failed to load featured datasets.",
-        );
-      })
-      .finally(() => setFeaturedLoading(false));
-    const timer = setTimeout(() => setLoaded(true), 100);
-    return () => clearTimeout(timer);
+const USDC_ISSUER = import.meta.env.PUBLIC_USDC_ISSUER || "";
+
+const DEFAULT_TOKENS = [
+  { token: "", tokenSymbol: "XLM", monthlyBurnRate: BigInt(0) },
+  {
+    token: USDC_ISSUER,
+    tokenSymbol: "USDC",
+    monthlyBurnRate: BigInt(0),
+  },
+];
+
+export const usePayroll = (
+  employerAddress: string | undefined,
+  options?: {
+    offset?: number;
+    limit?: number;
+  },
+) => {
+  const [treasuryBalances, setTreasuryBalances] = useState<TokenBalance[]>([]);
+  const [totalLiabilities, setTotalLiabilities] = useState<string>("0");
+  const [streams, setStreams] = useState<Stream[]>([]);
+  const [vaultData, setVaultData] = useState<TokenVaultData[]>([]);
+  const [payrollSummary, setPayrollSummary] = useState<PayrollSummary | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isVaultLoading, setIsVaultLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fetchTick, setFetchTick] = useState(0);
+
+  const fetchVaultData = useCallback(async () => {
+    setIsVaultLoading(true);
+    try {
+      const data = await dedupRequest("vaultData", () =>
+        getAllVaultData(DEFAULT_TOKENS),
+      );
+
+      setVaultData(data);
+      setTreasuryBalances(
+        data.map((v: TokenVaultData) => ({
+          tokenSymbol: v.tokenSymbol,
+          balance: v.balance.toString(),
+        })),
+      );
+
+      const totalLiability = data.reduce(
+        (sum: bigint, v: TokenVaultData) => sum + v.liability,
+        BigInt(0),
+      );
+      setTotalLiabilities(totalLiability.toString());
+    } catch (error) {
+      console.error("Failed to fetch vault data:", error);
+      setVaultData([]);
+    } finally {
+      setIsVaultLoading(false);
+    }
   }, []);
 
-  // Generate particles positions once
-  const particles = Array.from({ length: 30 }, (_, i) => ({
-    key: i,
-    style: {
-      left: `${Math.random() * 100}%`,
-      top: `${Math.random() * 100}%`,
-      opacity: 0.3 + Math.random() * 0.5,
+  const fetchPayrollSummary = useCallback(async (address: string) => {
+    const backendUrl =
+      import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
+
+    await dedupRequest(`summary-${address}`, async () => {
+      const response = await fetch(
+        `${backendUrl}/api/v1/analytics/payroll-summary?org_id=${encodeURIComponent(address)}&period=ytd`,
+      );
+
+      if (!response.ok) throw new Error("Failed to load payroll summary");
+
+      const payload = await response.json();
+      setPayrollSummary(payload.data ?? null);
+    });
+  }, []);
+
+  const fetchStreams = useCallback(
+    async (address: string) => {
+      try {
+        const streamPage = await dedupRequest(
+          `streams-${address}-${options?.offset}-${options?.limit}`,
+          () => getStreamsByEmployer(address, options?.offset, options?.limit),
+        );
+
+        const employerStreams: Stream[] = await Promise.all(
+          streamPage.streams.map(async (s: ContractStream, index: number) => {
+            const streamId = String((options?.offset ?? 0) + index + 1);
+            const tokenSymbol = await getTokenSymbol(address, s.token);
+
+            return {
+              id: streamId,
+              employeeName: `Worker ${streamId.slice(0, 8)}`,
+              employeeAddress: s.worker,
+              flowRate: (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7),
+              tokenSymbol,
+              startDate: new Date(Number(s.start_ts) * 1000)
+                .toISOString()
+                .split("T")[0],
+              endDate: new Date(Number(s.end_ts) * 1000)
+                .toISOString()
+                .split("T")[0],
+              totalAmount: (
+                Number(s.total_amount) / STROOPS_PER_UNIT
+              ).toFixed(2),
+              totalStreamed: (
+                Number(s.withdrawn_amount) / STROOPS_PER_UNIT
+              ).toFixed(2),
+              status:
+                s.status === 1
+                  ? "cancelled"
+                  : s.status === 2
+                  ? "completed"
+                  : s.status === 3
+                  ? "paused"
+                  : "active",
+            };
+          }),
+        );
+
+        setStreams(employerStreams);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load stream data");
+        setStreams([]);
+      }
     },
-  }));
-
-  return (
-    <div className="min-h-screen">
-      {/* ── HERO ── */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-24 pb-20">
-        {/* Background patterns */}
-        <div className="absolute inset-0 pattern-kente" />
-        <div className="absolute inset-0 bg-gradient-to-b from-void via-void/95 to-void-2" />
-
-        {/* Radial glow */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(ellipse 70% 50% at 50% 40%, rgba(201,168,76,0.07) 0%, transparent 70%)",
-          }}
-        />
-
-        {/* Floating particles */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {particles.map((p) => (
-            <Particle key={p.key} style={p.style} />
-          ))}
-        </div>
-
-        {/* Hero content */}
-        <div
-          className={clsx(
-            "relative z-10 text-center px-4 max-w-5xl mx-auto transition-all duration-700",
-            loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8",
-          )}
-        >
-          {/* Eyebrow */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-gold/25 bg-gold/5 mb-8">
-            <Star className="w-3.5 h-3.5 text-gold" />
-            <span className="text-xs font-body font-medium text-gold tracking-widest uppercase">
-              {t("landing.eyebrow")}
-            </span>
-          </div>
-
-          {/* Headline */}
-          <h1 className="font-display text-5xl md:text-7xl lg:text-8xl font-bold text-foreground mb-6 leading-[1.05]">
-            {t("landing.headline.lineOne")}
-            <br />
-            <span className="text-gold-gradient">{t("landing.headline.lineTwo")}</span>
-            <br />
-            {t("landing.headline.lineThree")}
-          </h1>
-
-          {/* Sub */}
-          <p className="text-lg md:text-xl text-foreground-muted font-body max-w-2xl mx-auto mb-12 leading-relaxed">
-            {t("landing.subheading")}
-          </p>
-
-          {/* CTAs */}
-          <div
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16"
-            data-tour="hero-cta"
-          >
-            <Link
-              to="/sell"
-              className="btn-gold text-base px-8 py-4 flex items-center gap-2 shadow-gold-md"
-            >
-              {t("common.actions.listData")}
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link
-              to="/marketplace"
-              className="btn-ghost text-base px-8 py-4 flex items-center gap-2"
-            >
-              {t("common.actions.browseMarketplace")}
-              <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
-
-          {/* Stats error notice */}
-          {statsError && (
-            <p className="text-xs text-red-400 font-body text-center mb-2 opacity-75">
-              {statsError}
-            </p>
-          )}
-
-          {/* Stats bar */}
-          <div className="flex flex-wrap justify-center gap-4">
-            <StatCard
-              value={stats.totalDatasets}
-              label={t("landing.stats.datasetsListed")}
-              locale={locale}
-            />
-            <StatCard
-              value={stats.totalQueries}
-              label={t("landing.stats.queriesSold")}
-              locale={locale}
-            />
-            <StatCard
-              value={stats.totalUsdcEarned}
-              label={t("landing.stats.usdcEarned")}
-              prefix="$"
-              decimals={2}
-              locale={locale}
-            />
-          </div>
-        </div>
-
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-bounce">
-          <div className="w-px h-8 bg-gradient-to-b from-transparent to-gold/50" />
-          <div className="w-1.5 h-1.5 rounded-full bg-gold/50" />
-        </div>
-      </section>
-
-      {/* ── HOW IT WORKS ── */}
-      <section className="py-24 relative">
-        <div className="absolute inset-0 pattern-bg" />
-        <div className="relative max-w-6xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <p className="text-gold text-sm font-body font-medium tracking-widest uppercase mb-3">
-              {t("landing.flow.eyebrow")}
-            </p>
-            <h2 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-4">
-              {t("landing.flow.title")}
-            </h2>
-            <p className="text-foreground-muted font-body max-w-xl mx-auto">
-              {t("landing.flow.body")}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
-            {/* Connector lines */}
-            <div className="hidden md:block absolute top-8 left-1/3 right-1/3 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
-
-            <Step
-              number="1"
-              icon={Upload}
-              title={t("landing.flow.steps.upload.title")}
-              desc={t("landing.flow.steps.upload.description")}
-            />
-            <Step
-              number="2"
-              icon={Shield}
-              title={t("landing.flow.steps.escrow.title")}
-              desc={t("landing.flow.steps.escrow.description")}
-            />
-            <Step
-              number="3"
-              icon={TrendingUp}
-              title={t("landing.flow.steps.earn.title")}
-              desc={t("landing.flow.steps.earn.description")}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ── FEATURES ── */}
-      <section className="py-24 bg-void-2">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <p className="text-gold text-sm font-body font-medium tracking-widest uppercase mb-3">
-                {t("landing.features.eyebrow")}
-              </p>
-              <h2 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-6 leading-tight">
-                {t("landing.features.titleStart")}{" "}
-                <em className="text-gold not-italic">{t("landing.features.titleAccent")}</em>
-              </h2>
-              <p className="text-foreground-muted font-body text-lg leading-relaxed mb-8">
-                {t("landing.features.body")}
-              </p>
-              <div className="flex flex-col gap-4">
-                {[
-                  {
-                    icon: Zap,
-                    label: t("landing.features.items.micropayments.label"),
-                    desc: t("landing.features.items.micropayments.description"),
-                  },
-                  {
-                    icon: Shield,
-                    label: t("landing.features.items.escrow.label"),
-                    desc: t("landing.features.items.escrow.description"),
-                  },
-                  {
-                    icon: Globe,
-                    label: t("landing.features.items.marketplace.label"),
-                    desc: t("landing.features.items.marketplace.description"),
-                  },
-                  {
-                    icon: Activity,
-                    label: t("landing.features.items.earnings.label"),
-                    desc: t("landing.features.items.earnings.description"),
-                  },
-                ].map(({ icon: Icon, label, desc }) => (
-                  <div key={label} className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Icon className="w-5 h-5 text-gold" />
-                    </div>
-                    <div>
-                      <p className="font-body font-semibold text-foreground text-sm mb-0.5">
-                        {label}
-                      </p>
-                      <p className="font-body text-sm text-foreground-muted">
-                        {desc}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Visual vault */}
-            <div className="relative flex items-center justify-center">
-              <div className="relative w-80 h-80">
-                {/* Outer ring */}
-                <div
-                  className="absolute inset-0 rounded-full border border-gold/15 animate-spin-slow"
-                  style={{ animationDuration: "20s" }}
-                />
-                {/* Middle ring */}
-                <div
-                  className="absolute inset-8 rounded-full border border-gold/20"
-                  style={{ animation: "spin 15s linear infinite reverse" }}
-                />
-                {/* Inner glow */}
-                <div className="absolute inset-16 rounded-full bg-gold/5 border border-gold/30 flex items-center justify-center">
-                  <div className="text-center">
-                    <Lock className="w-10 h-10 text-gold mx-auto mb-2" />
-                    <p className="text-xs text-gold font-body font-medium">
-                      {t("landing.features.vaultSecured")}
-                    </p>
-                  </div>
-                </div>
-                {/* Orbiting dots */}
-                {[0, 60, 120, 180, 240, 300].map((deg, i) => (
-                  <div
-                    key={i}
-                    className="absolute w-3 h-3 rounded-full bg-gold/60"
-                    style={{
-                      top: `calc(50% + ${Math.sin((deg * Math.PI) / 180) * 130}px - 6px)`,
-                      left: `calc(50% + ${Math.cos((deg * Math.PI) / 180) * 130}px - 6px)`,
-                      boxShadow: "0 0 8px rgba(201,168,76,0.8)",
-                      animation: `pulseGold ${2 + i * 0.3}s ease-in-out infinite`,
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Featured datasets error notice */}
-      {featuredError && (
-        <section className="py-6">
-          <div className="max-w-6xl mx-auto px-4 text-center">
-            <p className="text-sm text-red-400 font-body opacity-75">{featuredError}</p>
-          </div>
-        </section>
-      )}
-
-      {/* ── FEATURED DATASETS ── */}
-      {!featuredError && (featuredLoading || featured.length > 0) && (
-        <section className="py-24 relative">
-          <div className="absolute inset-0 pattern-dense" />
-          <div className="relative max-w-6xl mx-auto px-4">
-            <div className="flex items-end justify-between mb-12">
-              <div>
-                <p className="text-gold text-sm font-body font-medium tracking-widest uppercase mb-3">
-                  {t("landing.featured.eyebrow")}
-                </p>
-                <h2 className="font-display text-4xl md:text-5xl font-bold text-foreground">
-                  {t("landing.featured.title")}
-                </h2>
-              </div>
-              <Link
-                to="/marketplace"
-                className="hidden md:flex btn-ghost items-center gap-2 text-sm"
-              >
-                {t("common.actions.viewAll")}
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {featuredLoading
-                ? Array.from({ length: 3 }).map((_, i) => (
-                    <DatasetCardSkeleton key={i} />
-                  ))
-                : featured.map((ds) => (
-                    <DatasetCard key={ds.id} dataset={ds} onBuy={() => {}} />
-                  ))}
-            </div>
-
-            {!featuredLoading && (
-              <div className="text-center mt-10">
-                <Link
-                  to="/marketplace"
-                  className="btn-gold text-base px-8 py-4 inline-flex items-center gap-2"
-                >
-                  <Database className="w-5 h-5" />
-                  {t("landing.featured.browseAll")}
-                </Link>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ── CTA BANNER ── */}
-      <section className="py-24 relative overflow-hidden">
-        <div className="absolute inset-0 bg-void-2" />
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse 60% 70% at 50% 50%, rgba(201,168,76,0.08) 0%, transparent 70%)",
-          }}
-        />
-        <div className="relative max-w-3xl mx-auto px-4 text-center">
-          <h2 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-6">
-            {t("landing.cta.titleStart")}{" "}
-            <span className="text-gold-gradient">{t("landing.cta.titleAccent")}</span>
-          </h2>
-          <p className="text-foreground-muted font-body text-lg mb-10">
-            {t("landing.cta.body")}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/sell"
-              className="btn-gold text-base px-10 py-4 flex items-center justify-center gap-2 shadow-gold-lg"
-            >
-              {t("common.actions.startSellingNow")}
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link
-              to="/marketplace"
-              className="btn-ghost text-base px-8 py-4 flex items-center justify-center gap-2"
-            >
-              {t("common.actions.exploreMarketplace")}
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── FOOTER ── */}
-      <footer className="border-t border-border/40 py-12">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center">
-              <Database className="w-4 h-4 text-gold" />
-            </div>
-            <span className="font-display font-semibold text-foreground">
-              {t("nav.brand")}
-            </span>
-          </div>
-          <p className="text-xs text-muted-2 font-body">
-            {t("landing.footer.tagline")}
-          </p>
-          <div className="flex gap-6">
-            <Link
-              to="/marketplace"
-              className="text-xs text-foreground-muted hover:text-gold transition-colors font-body"
-            >
-              {t("nav.marketplace")}
-            </Link>
-            <Link
-              to="/sell"
-              className="text-xs text-foreground-muted hover:text-gold transition-colors font-body"
-            >
-              {t("nav.sell")}
-            </Link>
-            <Link
-              to="/dashboard"
-              className="text-xs text-foreground-muted hover:text-gold transition-colors font-body"
-            >
-              {t("nav.dashboard")}
-            </Link>
-          </div>
-        </div>
-      </footer>
-    </div>
+    [options?.offset, options?.limit],
   );
-}
+
+  const refetch = useCallback(() => {
+    setFetchTick((t) => t + 1);
+  }, []);
+
+  const refreshData = useCallback(async () => {
+    await fetchVaultData();
+    if (employerAddress) {
+      await Promise.all([
+        fetchStreams(employerAddress),
+        fetchPayrollSummary(employerAddress),
+      ]);
+    }
+  }, [employerAddress, fetchPayrollSummary, fetchStreams, fetchVaultData]);
+
+  useEffect(() => {
+    if (!employerAddress) return;
+
+    const WS_URL =
+      import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
+
+    const socket = io(WS_URL, {
+      path: "/socket.io",
+      query: { token: localStorage.getItem("auth_token") || "dummy" },
+    });
+
+    socket.on("stream:event", () => {
+      refetch();
+    });
+
+    return () => socket.disconnect();
+  }, [employerAddress, refetch]);
+
+  useEffect(() => {
+    if (!employerAddress) {
+      setStreams([]);
+      setPayrollSummary(null);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        await fetchVaultData();
+        await Promise.all([
+          fetchStreams(employerAddress),
+          fetchPayrollSummary(employerAddress),
+        ]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load payroll data");
+        setStreams([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void fetchData();
+  }, [
+    employerAddress,
+    fetchPayrollSummary,
+    fetchStreams,
+    fetchTick,
+    fetchVaultData,
+  ]);
+
+  const activeStreams = useMemo(
+    () =>
+      streams.filter(
+        (s) =>
+          s.status === "active" ||
+          s.status === "paused" ||
+          s.pendingAction !== undefined,
+      ),
+    [streams],
+  );
+
+  const activeStreamsCount = useMemo(
+    () => streams.filter((s) => s.status === "active").length,
+    [streams],
+  );
+
+  return {
+    treasuryBalances,
+    totalLiabilities,
+    payrollSummary,
+    activeStreamsCount,
+    streams,
+    activeStreams,
+    vaultData,
+    isLoading,
+    isVaultLoading,
+    error,
+    refreshData,
+    refreshVaultData: fetchVaultData,
+    refetch,
+  };
+};
