@@ -1,4 +1,3 @@
-const BASE = '/api';
 const REQUEST_THROTTLE_MS = 250;
 
 const requestQueues = new Map<string, Promise<void>>();
@@ -43,12 +42,17 @@ async function scheduleRequest<T>(key: string, task: () => Promise<T>): Promise<
     }
   });
 }
+
+export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+export const AGENT_REQUEST_TIMEOUT_MS = 120_000;
+
 const RAW_API_URL = (import.meta.env.VITE_API_URL ?? '').toString().trim();
 export const API_BASE_URL = RAW_API_URL
   ? `${RAW_API_URL.replace(/\/+$/, '')}/api`
   : '/api';
 
 const BASE = API_BASE_URL;
+const API_KEY = (import.meta.env.VITE_API_KEY ?? '').toString().trim();
 
 export interface AgentSellerPayment {
   seller: string;
@@ -160,38 +164,6 @@ export interface QueryResult {
   };
 }
 
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  return scheduleRequest(getRequestKey(url, options), async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
-
-    try {
-      const res = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        ...options,
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Network error' }));
-        throw new Error(err.error || `HTTP ${res.status}`);
-      }
-
-      return res.json();
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        throw new Error('Request timed out — please try again');
-      }
-      throw err;
-    } finally {
-      clearTimeout(timeout);
-    }
-  });
-export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
-export const AGENT_REQUEST_TIMEOUT_MS = 120_000;
-
-const API_KEY = (import.meta.env.VITE_API_KEY ?? '').toString().trim();
-
 interface RequestOptions extends RequestInit {
   /** Per-call override of the abort timeout, in milliseconds. */
   timeoutMs?: number;
@@ -209,8 +181,8 @@ async function fetchWithTimeout(url: string, options?: RequestOptions): Promise<
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, {
-      headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
+      headers: authHeaders(init.headers),
       ...init,
     });
   } catch (err) {
@@ -287,12 +259,14 @@ function validateDataset(raw: unknown, index?: number): DatasetMeta {
 // ── HTTP helper ────────────────────────────────────────────────────────────
 
 async function request<T>(url: string, options?: RequestOptions): Promise<T> {
-  const res = await fetchWithTimeout(url, options);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Network error' }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
-  return res.json();
+  return scheduleRequest(getRequestKey(url, options), async () => {
+    const res = await fetchWithTimeout(url, options);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Network error' }));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    return res.json();
+  });
 }
 
 export const api = {
@@ -345,7 +319,6 @@ export const api = {
       `${BASE}/query/${id}`,
       { method: 'POST' },
     ),
-    fetchWithTimeout(`${BASE}/query/${id}`, { method: 'POST' }).then((r) => r.json()),
 
   verifyPayment: (id: string, txHash: string, buyerQuestion?: string) =>
     request<QueryResult>(`${BASE}/verify/${id}`, {

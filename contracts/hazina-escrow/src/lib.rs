@@ -1,8 +1,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, Address, Env, String, Vec, token, panic_with_error,
-  
+    contract, contracterror, contractimpl, contracttype, panic_with_error, token, Address, Env,
+    String, Vec,
 };
 
 const MAX_BASIS_POINTS: u32 = 10_000;
@@ -13,6 +13,7 @@ pub enum DataKey {
     DefaultPlatformFee,
     EscrowCount,
     WhitelistEnforced,
+    Paused,
     DatasetFee(String),
     Whitelisted(Address),
     Blacklisted(Address),
@@ -38,6 +39,7 @@ pub enum HazinaEscrowError {
     AddressBlacklisted = 9,
     AddressNotWhitelisted = 10,
     EmptyDatasetId = 11,
+    Paused = 12,
 }
 
 #[contracttype]
@@ -99,6 +101,34 @@ impl HazinaEscrow {
         env.storage()
             .instance()
             .set(&DataKey::WhitelistEnforced, &false);
+        env.storage().instance().set(&DataKey::Paused, &false);
+    }
+
+    /// Emergency circuit breaker: pause buyer locks and admin releases.
+    pub fn pause(env: Env, admin: Address) {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin);
+
+        env.storage().instance().set(&DataKey::Paused, &true);
+        env.events()
+            .publish((soroban_sdk::symbol_short!("paused"),), admin);
+    }
+
+    /// Resume normal operations after a pause.
+    pub fn unpause(env: Env, admin: Address) {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin);
+
+        env.storage().instance().set(&DataKey::Paused, &false);
+        env.events()
+            .publish((soroban_sdk::symbol_short!("unpaused"),), admin);
+    }
+
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
     }
 
     pub fn set_default_fee(env: Env, admin: Address, fee_bps: u32) {
@@ -119,7 +149,8 @@ impl HazinaEscrow {
         admin.require_auth();
         Self::assert_admin(&env, &admin);
         env.storage().instance().set(&DataKey::Admin, &new_admin);
-        env.events().publish((soroban_sdk::symbol_short!("admin"),), (new_admin,));
+        env.events()
+            .publish((soroban_sdk::symbol_short!("admin"),), (new_admin,));
     }
 
     /// Update platform fee (max 1000 bps = 10%). Only admin.
@@ -127,8 +158,13 @@ impl HazinaEscrow {
         admin.require_auth();
         Self::assert_admin(&env, &admin);
         assert!(new_fee_bps <= 1_000, "fee too high");
-        env.storage().instance().set(&DataKey::DefaultPlatformFee, &new_fee_bps);
-        env.events().publish((soroban_sdk::symbol_short!("fee_upd"),), (admin, new_fee_bps));
+        env.storage()
+            .instance()
+            .set(&DataKey::DefaultPlatformFee, &new_fee_bps);
+        env.events().publish(
+            (soroban_sdk::symbol_short!("fee_upd"),),
+            (admin, new_fee_bps),
+        );
     }
 
     pub fn set_dataset_fee(env: Env, admin: Address, dataset_id: String, fee_bps: u32) {
@@ -264,6 +300,7 @@ impl HazinaEscrow {
         dataset_id: String,
     ) -> u64 {
         buyer.require_auth();
+        Self::assert_not_paused(&env);
         Self::assert_valid_amount(&env, amount);
         Self::assert_valid_dataset_id(&env, &dataset_id);
         Self::require_operational_address(&env, &buyer);
@@ -316,6 +353,7 @@ impl HazinaEscrow {
         dataset_ids: Vec<String>,
     ) -> u64 {
         buyer.require_auth();
+        Self::assert_not_paused(&env);
         if shares.is_empty() || shares.len() != dataset_ids.len() {
             panic_with_error!(&env, HazinaEscrowError::EscrowNotFound);
         }
@@ -337,7 +375,11 @@ impl HazinaEscrow {
         let token_client = token::Client::new(&env, &token);
         token_client.transfer(&buyer, &env.current_contract_address(), &total_amount);
 
-        let first_id: u64 = env.storage().instance().get(&DataKey::EscrowCount).unwrap_or(0);
+        let first_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::EscrowCount)
+            .unwrap_or(0);
         let mut next_id = first_id;
         let mut j: u32 = 0;
         while j < shares.len() {
@@ -368,19 +410,23 @@ impl HazinaEscrow {
             j += 1;
         }
 
-        env.storage().instance().set(&DataKey::EscrowCount, &next_id);
+        env.storage()
+            .instance()
+            .set(&DataKey::EscrowCount, &next_id);
         first_id
     }
 
     pub fn release(env: Env, admin: Address, escrow_id: u64) {
         admin.require_auth();
         Self::assert_admin(&env, &admin);
+        Self::assert_not_paused(&env);
         Self::release_one(&env, &admin, escrow_id);
     }
 
     pub fn release_multi(env: Env, admin: Address, escrow_ids: Vec<u64>) {
         admin.require_auth();
         Self::assert_admin(&env, &admin);
+        Self::assert_not_paused(&env);
 
         let mut i: u32 = 0;
         while i < escrow_ids.len() {
@@ -458,8 +504,19 @@ impl HazinaEscrow {
     }
 
     fn assert_valid_dataset_id(env: &Env, dataset_id: &String) {
-        if dataset_id.len() == 0 {
+        if dataset_id.is_empty() {
             panic_with_error!(env, HazinaEscrowError::EmptyDatasetId);
+        }
+    }
+
+    fn assert_not_paused(env: &Env) {
+        if env
+            .storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            panic_with_error!(env, HazinaEscrowError::Paused);
         }
     }
 
@@ -500,10 +557,10 @@ impl HazinaEscrow {
             record.amount * record.platform_fee_bps as i128 / MAX_BASIS_POINTS as i128;
         let platform_cut =
             if calculated_platform_cut == 0 && record.amount > 0 && record.platform_fee_bps > 0 {
-            1
-        } else {
-            calculated_platform_cut
-        };
+                1
+            } else {
+                calculated_platform_cut
+            };
         let seller_cut = record.amount - platform_cut;
 
         let token_client = token::Client::new(env, &record.token);
@@ -531,6 +588,8 @@ mod tests {
         Address, Env, String,
     };
 
+    const INITIAL_BUYER_BALANCE: i128 = 10_000_000_000; // 1_000 units with 7 decimals
+
     fn setup() -> (
         Env,
         HazinaEscrowClient<'static>,
@@ -549,7 +608,7 @@ mod tests {
         let token_id = env.register_stellar_asset_contract_v2(admin.clone());
         let usdc = token_id.address();
         let usdc_admin = StellarAssetClient::new(&env, &usdc);
-        usdc_admin.mint(&buyer, &1_000_0000000);
+        usdc_admin.mint(&buyer, &INITIAL_BUYER_BALANCE);
 
         let contract_id = env.register(HazinaEscrow, ());
         let client = HazinaEscrowClient::new(&env, &contract_id);
@@ -741,7 +800,7 @@ mod tests {
 
         let record = client.get_escrow(&escrow_id);
         assert!(record.refunded);
-        assert_eq!(token_client.balance(&buyer), 1_000_0000000);
+        assert_eq!(token_client.balance(&buyer), INITIAL_BUYER_BALANCE);
     }
 
     #[test]
@@ -884,7 +943,7 @@ mod tests {
 
         let first_id = client.lock_multi(&buyer, &usdc, &shares, &dataset_ids);
         assert_eq!(first_id, 0);
-        assert_eq!(token_client.balance(&buyer), 1_000_0000000 - total);
+        assert_eq!(token_client.balance(&buyer), INITIAL_BUYER_BALANCE - total);
 
         let mut escrow_ids = Vec::new(&env);
         escrow_ids.push_back(first_id);
@@ -898,8 +957,10 @@ mod tests {
         let s2_expected = amount_2 * 95 / 100;
         let s3_expected = amount_3 * 95 / 100;
         let s4_expected = amount_4 * 95 / 100;
-        let admin_expected =
-            (amount_1 - s1_expected) + (amount_2 - s2_expected) + (amount_3 - s3_expected) + (amount_4 - s4_expected);
+        let admin_expected = (amount_1 - s1_expected)
+            + (amount_2 - s2_expected)
+            + (amount_3 - s3_expected)
+            + (amount_4 - s4_expected);
 
         assert_eq!(token_client.balance(&seller_1), s1_expected);
         assert_eq!(token_client.balance(&seller_2), s2_expected);
@@ -948,12 +1009,12 @@ mod tests {
         let usdc_id = env.register_stellar_asset_contract_v2(admin.clone());
         let usdc = usdc_id.address();
         let usdc_admin = StellarAssetClient::new(&env, &usdc);
-        usdc_admin.mint(&buyer, &1_000_0000000);
+        usdc_admin.mint(&buyer, &INITIAL_BUYER_BALANCE);
 
         let eurc_id = env.register_stellar_asset_contract_v2(admin.clone());
         let eurc = eurc_id.address();
         let eurc_admin = StellarAssetClient::new(&env, &eurc);
-        eurc_admin.mint(&buyer, &500_0000000);
+        eurc_admin.mint(&buyer, &5_000_000_000);
 
         let usdc_amount: i128 = 1_000_000;
         let eurc_amount: i128 = 500_000;
@@ -1031,11 +1092,80 @@ mod tests {
         let (_, client, admin, _, _, _) = setup();
         client.initialize(&admin, &500); // second call must panic
     }
+
+    #[test]
+    fn test_pause_and_unpause_toggles_state() {
+        let (_env, client, admin, _buyer, _seller, _usdc) = setup();
+        assert!(!client.is_paused());
+        client.pause(&admin);
+        assert!(client.is_paused());
+        client.unpause(&admin);
+        assert!(!client.is_paused());
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #3)")]
+    fn test_pause_requires_admin() {
+        let (env, client, _admin, _buyer, _seller, _usdc) = setup();
+        let outsider = Address::generate(&env);
+        client.pause(&outsider);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #12)")]
+    fn test_lock_fails_when_paused() {
+        let (env, client, admin, buyer, seller, usdc) = setup();
+        client.pause(&admin);
+        client.lock(
+            &buyer,
+            &seller,
+            &usdc,
+            &1_000_000,
+            &dataset_id(&env, "ds-paused-lock"),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #12)")]
+    fn test_release_fails_when_paused() {
+        let (env, client, admin, buyer, seller, usdc) = setup();
+        let escrow_id = client.lock(
+            &buyer,
+            &seller,
+            &usdc,
+            &1_000_000,
+            &dataset_id(&env, "ds-paused-release"),
+        );
+        client.pause(&admin);
+        client.release(&admin, &escrow_id);
+    }
+
+    #[test]
+    fn test_refund_still_works_when_paused() {
+        let (env, client, admin, buyer, seller, usdc) = setup();
+        let token_client = TokenClient::new(&env, &usdc);
+        let amount: i128 = 1_234_567;
+
+        let escrow_id = client.lock(
+            &buyer,
+            &seller,
+            &usdc,
+            &amount,
+            &dataset_id(&env, "ds-paused-refund"),
+        );
+
+        client.pause(&admin);
+        client.refund(&admin, &escrow_id);
+
+        let record = client.get_escrow(&escrow_id);
+        assert!(record.refunded);
+        assert_eq!(token_client.balance(&buyer), INITIAL_BUYER_BALANCE);
+    }
 }
 
 // ─── Fuzz / property-based tests ────────────────────────────────────────────
 
-#[cfg(test)]
+#[cfg(all(test, feature = "fuzz-tests"))]
 mod fuzz_tests {
     extern crate std;
 

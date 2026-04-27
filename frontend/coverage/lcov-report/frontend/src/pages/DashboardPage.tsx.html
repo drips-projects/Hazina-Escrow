@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">7.43% </span>
+                <span class="strong">7.14% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>46/619</span>
+                <span class='fraction'>46/644</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">7.43% </span>
+                <span class="strong">7.14% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>46/619</span>
+                <span class='fraction'>46/644</span>
             </div>
         
             
@@ -682,7 +682,32 @@
 <a name='L617'></a><a href='#L617'>617</a>
 <a name='L618'></a><a href='#L618'>618</a>
 <a name='L619'></a><a href='#L619'>619</a>
-<a name='L620'></a><a href='#L620'>620</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L620'></a><a href='#L620'>620</a>
+<a name='L621'></a><a href='#L621'>621</a>
+<a name='L622'></a><a href='#L622'>622</a>
+<a name='L623'></a><a href='#L623'>623</a>
+<a name='L624'></a><a href='#L624'>624</a>
+<a name='L625'></a><a href='#L625'>625</a>
+<a name='L626'></a><a href='#L626'>626</a>
+<a name='L627'></a><a href='#L627'>627</a>
+<a name='L628'></a><a href='#L628'>628</a>
+<a name='L629'></a><a href='#L629'>629</a>
+<a name='L630'></a><a href='#L630'>630</a>
+<a name='L631'></a><a href='#L631'>631</a>
+<a name='L632'></a><a href='#L632'>632</a>
+<a name='L633'></a><a href='#L633'>633</a>
+<a name='L634'></a><a href='#L634'>634</a>
+<a name='L635'></a><a href='#L635'>635</a>
+<a name='L636'></a><a href='#L636'>636</a>
+<a name='L637'></a><a href='#L637'>637</a>
+<a name='L638'></a><a href='#L638'>638</a>
+<a name='L639'></a><a href='#L639'>639</a>
+<a name='L640'></a><a href='#L640'>640</a>
+<a name='L641'></a><a href='#L641'>641</a>
+<a name='L642'></a><a href='#L642'>642</a>
+<a name='L643'></a><a href='#L643'>643</a>
+<a name='L644'></a><a href='#L644'>644</a>
+<a name='L645'></a><a href='#L645'>645</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -837,6 +862,31 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1461,16 +1511,23 @@ import { useI18n } from "../i18n";
 <span class="cstat-no" title="statement not covered" >  const [datasets, setDatasets] = useState&lt;DatasetMeta[]&gt;([]);</span>
 <span class="cstat-no" title="statement not covered" >  const [transactions, setTransactions] = useState&lt;Transaction[]&gt;([]);</span>
 <span class="cstat-no" title="statement not covered" >  const [loading, setLoading] = useState(true);</span>
+<span class="cstat-no" title="statement not covered" >  const [fetchError, setFetchError] = useState&lt;string | null&gt;(null);</span>
 <span class="cstat-no" title="statement not covered" >  const [walletFilter, setWalletFilter] = useState("");</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >  useEffect(() =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    setLoading(true);</span>
+<span class="cstat-no" title="statement not covered" >    setFetchError(null);</span>
 <span class="cstat-no" title="statement not covered" >    Promise.all([api.getDatasets()])</span>
 <span class="cstat-no" title="statement not covered" >      .then(([ds]) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >        setDatasets(ds);</span>
-<span class="cstat-no" title="statement not covered" >        // Load transactions for all datasets</span>
 <span class="cstat-no" title="statement not covered" >        return Promise.all(ds.map((d) =&gt; api.getTransactions(d.id)));</span>
 <span class="cstat-no" title="statement not covered" >      })</span>
 <span class="cstat-no" title="statement not covered" >      .then((txArrays) =&gt; setTransactions(txArrays.flat()))</span>
+<span class="cstat-no" title="statement not covered" >      .catch((err) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >        setFetchError(</span>
+<span class="cstat-no" title="statement not covered" >          err instanceof Error ? err.message : "Failed to load dashboard data.",</span>
+<span class="cstat-no" title="statement not covered" >        );</span>
+<span class="cstat-no" title="statement not covered" >      })</span>
 <span class="cstat-no" title="statement not covered" >      .finally(() =&gt; setLoading(false));</span>
 <span class="cstat-no" title="statement not covered" >  }, []);</span>
 <span class="cstat-no" title="statement not covered" ></span>
@@ -1543,6 +1600,26 @@ import { useI18n } from "../i18n";
 <span class="cstat-no" title="statement not covered" >    );</span>
 <span class="cstat-no" title="statement not covered" >  }</span>
 <span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  if (fetchError) {</span>
+<span class="cstat-no" title="statement not covered" >    return (</span>
+<span class="cstat-no" title="statement not covered" >      &lt;div className="min-h-screen pt-28 flex items-center justify-center px-4"&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;div className="glass-card max-w-md w-full p-8 text-center"&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;p className="font-display text-xl font-semibold text-foreground mb-3"&gt;</span>
+<span class="cstat-no" title="statement not covered" >            {t("dashboard.loadError", "Could not load dashboard")}</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;p className="text-sm text-foreground-muted font-body mb-6"&gt;{fetchError}&lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;button</span>
+<span class="cstat-no" title="statement not covered" >            type="button"</span>
+<span class="cstat-no" title="statement not covered" >            onClick={() =&gt; window.location.reload()}</span>
+<span class="cstat-no" title="statement not covered" >            className="btn-gold px-6 py-2.5 text-sm"</span>
+<span class="cstat-no" title="statement not covered" >          &gt;</span>
+<span class="cstat-no" title="statement not covered" >            {t("common.actions.retry", "Retry")}</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >    );</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >  return (</span>
 <span class="cstat-no" title="statement not covered" >    &lt;div className="min-h-screen pt-28 pb-20"&gt;</span>
 <span class="cstat-no" title="statement not covered" >      &lt;div className="max-w-7xl mx-auto px-4"&gt;</span>
@@ -1608,7 +1685,6 @@ import { useI18n } from "../i18n";
 <span class="cstat-no" title="statement not covered" >            prefix="$"</span>
 <span class="cstat-no" title="statement not covered" >            decimals={4}</span>
 <span class="cstat-no" title="statement not covered" >            color="text-gold"</span>
-<span class="cstat-no" title="statement not covered" >            trend={12}</span>
 <span class="cstat-no" title="statement not covered" >            locale={locale}</span>
 <span class="cstat-no" title="statement not covered" >          /&gt;</span>
 <span class="cstat-no" title="statement not covered" >          &lt;StatCard</span>
@@ -1616,7 +1692,6 @@ import { useI18n } from "../i18n";
 <span class="cstat-no" title="statement not covered" >            label={t("dashboard.stats.totalQueries")}</span>
 <span class="cstat-no" title="statement not covered" >            value={totalQueries}</span>
 <span class="cstat-no" title="statement not covered" >            suffix={t("common.units.queries")}</span>
-<span class="cstat-no" title="statement not covered" >            trend={8}</span>
 <span class="cstat-no" title="statement not covered" >            locale={locale}</span>
 <span class="cstat-no" title="statement not covered" >          /&gt;</span>
 <span class="cstat-no" title="statement not covered" >          &lt;StatCard</span>
@@ -1927,7 +2002,7 @@ import { useI18n } from "../i18n";
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-25T10:11:41.741Z
+                at 2026-04-25T23:05:41.622Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

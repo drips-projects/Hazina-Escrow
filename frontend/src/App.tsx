@@ -8,6 +8,7 @@ import MarketplacePage from "./pages/MarketplacePage";
 import SellPage from "./pages/SellPage";
 import DashboardPage from "./pages/DashboardPage";
 import AgentPage from "./pages/AgentPage";
+import TermsPage from "./pages/TermsPage";
 import { useI18n } from "./i18n";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/marketplace" element={<RouteBoundary label="Marketplace"><MarketplacePage /></RouteBoundary>} />
           <Route path="/sell" element={<RouteBoundary label="Sell"><SellPage /></RouteBoundary>} />
           <Route path="/dashboard" element={<RouteBoundary label="Dashboard"><DashboardPage /></RouteBoundary>} />
+          <Route path="/terms" element={<RouteBoundary label="Terms"><TermsPage /></RouteBoundary>} />
           <Route path="/agent" element={<RouteBoundary label="Agent"><AgentPage /></RouteBoundary>} />
           <Route path="*" element={<RouteBoundary><NotFound /></RouteBoundary>} />
         </Routes>

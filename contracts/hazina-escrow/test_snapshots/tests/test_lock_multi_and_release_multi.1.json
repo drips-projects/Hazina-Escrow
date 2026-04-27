@@ -494,6 +494,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "platform_fee_bps"
+                      },
+                      "val": {
+                        "u32": 500
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "refunded"
                       },
                       "val": {
@@ -603,6 +611,14 @@
                       },
                       "val": {
                         "u64": 1
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "platform_fee_bps"
+                      },
+                      "val": {
+                        "u32": 500
                       }
                     },
                     {
@@ -720,6 +736,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "platform_fee_bps"
+                      },
+                      "val": {
+                        "u32": 500
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "refunded"
                       },
                       "val": {
@@ -833,6 +857,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "platform_fee_bps"
+                      },
+                      "val": {
+                        "u32": 500
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "refunded"
                       },
                       "val": {
@@ -911,6 +943,18 @@
                         "key": {
                           "vec": [
                             {
+                              "symbol": "DefaultPlatformFee"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "u32": 500
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
                               "symbol": "EscrowCount"
                             }
                           ]
@@ -923,12 +967,24 @@
                         "key": {
                           "vec": [
                             {
-                              "symbol": "PlatformFee"
+                              "symbol": "Paused"
                             }
                           ]
                         },
                         "val": {
-                          "u32": 500
+                          "bool": false
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "WhitelistEnforced"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "bool": false
                         }
                       }
                     ]

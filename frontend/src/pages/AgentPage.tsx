@@ -193,8 +193,8 @@ export default function AgentPage() {
                     clipRule="evenodd"
                   />
                 </svg>
-                {t("common.actions.retry", "Try again")}
-              </button>
+	                {t("common.actions.retry")}
+	              </button>
             </div>
           </div>
         )}

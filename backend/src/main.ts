@@ -1,8 +1,10 @@
 import { initializeDatadog } from './common/datadog';
+import { initializeSentry, Sentry } from './common/sentry';
 import dotenv from 'dotenv';
 
 dotenv.config();
 initializeDatadog();
+initializeSentry();
 
 import express, { Request } from 'express';
 import cors from 'cors';
@@ -18,15 +20,19 @@ import { webhooksRouter } from './webhooks/webhook.router';
 import { readStore } from './common/storage';
 import { BackupScheduler } from './common/backup.scheduler';
 import { backupRouter, setBackupScheduler } from './common/backup.router';
+import { createCompressionMiddleware } from './common/compression';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Compress all compressible API responses (brotli preferred, gzip fallback)
+app.use(createCompressionMiddleware());
 // Ensure client IP is derived correctly when running behind a reverse proxy.
 app.set('trust proxy', 1);
 
 app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
 app.use(express.json({ limit: '2mb' }));
+Sentry.setupExpressErrorHandler(app);
 
 // Rate limiting — global + per-route limits for sensitive endpoints
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
@@ -176,17 +182,20 @@ app.get('/health', async (_req, res) => {
 app.use((err: Error, _req: Request, res: Response, _next: () => void) => {
   const message = err.message || 'Internal server error';
   console.error('[Global Error Handler]', err);
+  Sentry.captureException(err);
   res.status(500).json({ error: message });
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason: unknown) => {
   console.error('[Unhandled Rejection]', reason);
+  Sentry.captureException(reason);
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err: Error) => {
   console.error('[Uncaught Exception]', err);
+  Sentry.captureException(err);
 });
 
 // Routes

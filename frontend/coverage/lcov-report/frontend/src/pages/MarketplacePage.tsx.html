@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.81% </span>
+                <span class="strong">7.11% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>21/308</span>
+                <span class='fraction'>21/295</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.81% </span>
+                <span class="strong">7.11% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>21/308</span>
+                <span class='fraction'>21/295</span>
             </div>
         
             
@@ -358,20 +358,7 @@
 <a name='L293'></a><a href='#L293'>293</a>
 <a name='L294'></a><a href='#L294'>294</a>
 <a name='L295'></a><a href='#L295'>295</a>
-<a name='L296'></a><a href='#L296'>296</a>
-<a name='L297'></a><a href='#L297'>297</a>
-<a name='L298'></a><a href='#L298'>298</a>
-<a name='L299'></a><a href='#L299'>299</a>
-<a name='L300'></a><a href='#L300'>300</a>
-<a name='L301'></a><a href='#L301'>301</a>
-<a name='L302'></a><a href='#L302'>302</a>
-<a name='L303'></a><a href='#L303'>303</a>
-<a name='L304'></a><a href='#L304'>304</a>
-<a name='L305'></a><a href='#L305'>305</a>
-<a name='L306'></a><a href='#L306'>306</a>
-<a name='L307'></a><a href='#L307'>307</a>
-<a name='L308'></a><a href='#L308'>308</a>
-<a name='L309'></a><a href='#L309'>309</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L296'></a><a href='#L296'>296</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -392,19 +379,6 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -702,6 +676,9 @@ import { useI18n } from "../i18n";
 &nbsp;
 <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >export default function MarketplacePage() {</span></span>
 <span class="cstat-no" title="statement not covered" >  const { locale, t } = useI18n();</span>
+<span class="cstat-no" title="statement not covered" >  /** Raw input value — updated on every keystroke. */</span>
+<span class="cstat-no" title="statement not covered" >  const [searchInput, setSearchInput] = useState("");</span>
+<span class="cstat-no" title="statement not covered" >  /** Debounced value used in the query — updated 400 ms after typing stops. */</span>
 <span class="cstat-no" title="statement not covered" >  const [search, setSearch] = useState("");</span>
 <span class="cstat-no" title="statement not covered" >  const [typeFilter, setTypeFilter] = useState("");</span>
 <span class="cstat-no" title="statement not covered" >  const [sort, setSort] = useState("popular");</span>
@@ -709,48 +686,32 @@ import { useI18n } from "../i18n";
 <span class="cstat-no" title="statement not covered" >  const [selectedDataset, setSelectedDataset] = useState&lt;DatasetMeta | null&gt;(</span>
 <span class="cstat-no" title="statement not covered" >    null,</span>
 <span class="cstat-no" title="statement not covered" >  );</span>
-<span class="cstat-no" title="statement not covered" >  const pageSize = 9;</span>
+<span class="cstat-no" title="statement not covered" >  const pageSize = 12;</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >  const { data: datasets = [], isLoading: loading, refetch } = useQuery&lt;DatasetMeta[]&gt;({</span>
-<span class="cstat-no" title="statement not covered" >    queryKey: ["datasets"],</span>
-<span class="cstat-no" title="statement not covered" >    queryFn: api.getDatasets,</span>
+<span class="cstat-no" title="statement not covered" >  // Debounce: only update the query key 400 ms after the user stops typing.</span>
+<span class="cstat-no" title="statement not covered" >  useEffect(() =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    const timer = setTimeout(() =&gt; setSearch(searchInput), 400);</span>
+<span class="cstat-no" title="statement not covered" >    return () =&gt; clearTimeout(timer);</span>
+<span class="cstat-no" title="statement not covered" >  }, [searchInput]);</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  const { data, isLoading: loading, refetch } = useQuery({</span>
+<span class="cstat-no" title="statement not covered" >    queryKey: ["datasets", page, search, typeFilter, sort],</span>
+<span class="cstat-no" title="statement not covered" >    queryFn: () =&gt; api.getDatasets({ page, limit: pageSize, search, type: typeFilter, sort }),</span>
 <span class="cstat-no" title="statement not covered" >  });</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >  const filtered = useMemo(() =&gt; {</span>
-<span class="cstat-no" title="statement not covered" >    return datasets</span>
-<span class="cstat-no" title="statement not covered" >      .filter((d) =&gt; {</span>
-<span class="cstat-no" title="statement not covered" >        const q = search.toLowerCase();</span>
-<span class="cstat-no" title="statement not covered" >        const matchSearch =</span>
-<span class="cstat-no" title="statement not covered" >          !q ||</span>
-<span class="cstat-no" title="statement not covered" >          d.name.toLowerCase().includes(q) ||</span>
-<span class="cstat-no" title="statement not covered" >          d.description.toLowerCase().includes(q);</span>
-<span class="cstat-no" title="statement not covered" >        const matchType = !typeFilter || d.type === typeFilter;</span>
-<span class="cstat-no" title="statement not covered" >        return matchSearch &amp;&amp; matchType;</span>
-<span class="cstat-no" title="statement not covered" >      })</span>
-<span class="cstat-no" title="statement not covered" >      .sort((a, b) =&gt; {</span>
-<span class="cstat-no" title="statement not covered" >        if (sort === "popular") return b.queriesServed - a.queriesServed;</span>
-<span class="cstat-no" title="statement not covered" >        if (sort === "price-asc") return a.pricePerQuery - b.pricePerQuery;</span>
-<span class="cstat-no" title="statement not covered" >        if (sort === "price-desc") return b.pricePerQuery - a.pricePerQuery;</span>
-<span class="cstat-no" title="statement not covered" >        if (sort === "newest")</span>
-<span class="cstat-no" title="statement not covered" >          return (</span>
-<span class="cstat-no" title="statement not covered" >            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()</span>
-<span class="cstat-no" title="statement not covered" >          );</span>
-<span class="cstat-no" title="statement not covered" >        return 0;</span>
-<span class="cstat-no" title="statement not covered" >      });</span>
-<span class="cstat-no" title="statement not covered" >  }, [datasets, search, typeFilter, sort]);</span>
+<span class="cstat-no" title="statement not covered" >  const datasets = data?.data || [];</span>
+<span class="cstat-no" title="statement not covered" >  const total = data?.total || 0;</span>
+<span class="cstat-no" title="statement not covered" >  const totalPages = data?.totalPages || 1;</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >  useEffect(() =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    setPage(1);</span>
 <span class="cstat-no" title="statement not covered" >  }, [search, sort, typeFilter]);</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));</span>
 <span class="cstat-no" title="statement not covered" >  const currentPage = Math.min(page, totalPages);</span>
-<span class="cstat-no" title="statement not covered" >  const paginated = useMemo(() =&gt; {</span>
-<span class="cstat-no" title="statement not covered" >    const start = (currentPage - 1) * pageSize;</span>
-<span class="cstat-no" title="statement not covered" >    return filtered.slice(start, start + pageSize);</span>
-<span class="cstat-no" title="statement not covered" >  }, [currentPage, filtered]);</span>
-<span class="cstat-no" title="statement not covered" >  const pageStart = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;</span>
-<span class="cstat-no" title="statement not covered" >  const pageEnd = filtered.length === 0 ? 0 : Math.min(currentPage * pageSize, filtered.length);</span>
+<span class="cstat-no" title="statement not covered" >  </span>
+<span class="cstat-no" title="statement not covered" >  const pageStart = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;</span>
+<span class="cstat-no" title="statement not covered" >  const pageEnd = total === 0 ? 0 : Math.min(currentPage * pageSize, total);</span>
+<span class="cstat-no" title="statement not covered" >  </span>
 <span class="cstat-no" title="statement not covered" >  const visiblePages = useMemo(() =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    const start = Math.max(1, currentPage - 1);</span>
 <span class="cstat-no" title="statement not covered" >    const end = Math.min(totalPages, start + 2);</span>
@@ -810,13 +771,13 @@ import { useI18n } from "../i18n";
 <span class="cstat-no" title="statement not covered" >              &lt;input</span>
 <span class="cstat-no" title="statement not covered" >                type="text"</span>
 <span class="cstat-no" title="statement not covered" >                placeholder={t("marketplace.searchPlaceholder")}</span>
-<span class="cstat-no" title="statement not covered" >                value={search}</span>
-<span class="cstat-no" title="statement not covered" >                onChange={(e) =&gt; setSearch(e.target.value)}</span>
+<span class="cstat-no" title="statement not covered" >                value={searchInput}</span>
+<span class="cstat-no" title="statement not covered" >                onChange={(e) =&gt; setSearchInput(e.target.value)}</span>
 <span class="cstat-no" title="statement not covered" >                className="w-full bg-void/60 border border-border/60 rounded-xl pl-11 pr-4 py-3 text-sm font-body text-foreground placeholder:text-muted focus:outline-none focus:border-gold/40 transition-colors"</span>
 <span class="cstat-no" title="statement not covered" >              /&gt;</span>
-<span class="cstat-no" title="statement not covered" >              {search &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >              {searchInput &amp;&amp; (</span>
 <span class="cstat-no" title="statement not covered" >                &lt;button</span>
-<span class="cstat-no" title="statement not covered" >                  onClick={() =&gt; setSearch("")}</span>
+<span class="cstat-no" title="statement not covered" >                  onClick={() =&gt; { setSearchInput(""); setSearch(""); }}</span>
 <span class="cstat-no" title="statement not covered" >                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"</span>
 <span class="cstat-no" title="statement not covered" >                  aria-label={t("common.actions.resetSearch")}</span>
 <span class="cstat-no" title="statement not covered" >                &gt;</span>
@@ -876,12 +837,12 @@ import { useI18n } from "../i18n";
 <span class="cstat-no" title="statement not covered" >                {t("marketplace.pagination.showing", {</span>
 <span class="cstat-no" title="statement not covered" >                  start: pageStart.toLocaleString(locale),</span>
 <span class="cstat-no" title="statement not covered" >                  end: pageEnd.toLocaleString(locale),</span>
-<span class="cstat-no" title="statement not covered" >                  total: filtered.length.toLocaleString(locale),</span>
+<span class="cstat-no" title="statement not covered" >                  total: total.toLocaleString(locale),</span>
 <span class="cstat-no" title="statement not covered" >                })}</span>
 <span class="cstat-no" title="statement not covered" >              &lt;/&gt;</span>
 <span class="cstat-no" title="statement not covered" >            )}</span>
 <span class="cstat-no" title="statement not covered" >          &lt;/p&gt;</span>
-<span class="cstat-no" title="statement not covered" >          {!loading &amp;&amp; filtered.length &gt; 0 &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >          {!loading &amp;&amp; datasets.length &gt; 0 &amp;&amp; (</span>
 <span class="cstat-no" title="statement not covered" >            &lt;p className="text-sm text-foreground-muted font-body"&gt;</span>
 <span class="cstat-no" title="statement not covered" >              {t("marketplace.pagination.page", {</span>
 <span class="cstat-no" title="statement not covered" >                current: currentPage.toLocaleString(locale),</span>
@@ -898,7 +859,7 @@ import { useI18n } from "../i18n";
 <span class="cstat-no" title="statement not covered" >              &lt;DatasetCardSkeleton key={i} /&gt;</span>
 <span class="cstat-no" title="statement not covered" >            ))}</span>
 <span class="cstat-no" title="statement not covered" >          &lt;/div&gt;</span>
-<span class="cstat-no" title="statement not covered" >        ) : filtered.length === 0 ? (</span>
+<span class="cstat-no" title="statement not covered" >        ) : datasets.length === 0 ? (</span>
 <span class="cstat-no" title="statement not covered" >          &lt;div className="text-center py-24"&gt;</span>
 <span class="cstat-no" title="statement not covered" >            &lt;div className="w-16 h-16 rounded-2xl bg-surface-2 border border-border flex items-center justify-center mx-auto mb-4"&gt;</span>
 <span class="cstat-no" title="statement not covered" >              &lt;Search className="w-8 h-8 text-muted" /&gt;</span>
@@ -913,7 +874,7 @@ import { useI18n } from "../i18n";
 <span class="cstat-no" title="statement not covered" >        ) : (</span>
 <span class="cstat-no" title="statement not covered" >          &lt;&gt;</span>
 <span class="cstat-no" title="statement not covered" >            &lt;div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"&gt;</span>
-<span class="cstat-no" title="statement not covered" >              {paginated.map((ds: DatasetMeta) =&gt; (</span>
+<span class="cstat-no" title="statement not covered" >              {datasets.map((ds: DatasetMeta) =&gt; (</span>
 <span class="cstat-no" title="statement not covered" >                &lt;DatasetCard</span>
 <span class="cstat-no" title="statement not covered" >                  key={ds.id}</span>
 <span class="cstat-no" title="statement not covered" >                  dataset={ds}</span>
@@ -994,7 +955,7 @@ import { useI18n } from "../i18n";
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-25T10:11:41.741Z
+                at 2026-04-25T23:05:41.622Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

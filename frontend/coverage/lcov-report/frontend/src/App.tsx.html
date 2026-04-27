@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">73.61% </span>
+                <span class="strong">76.82% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>53/72</span>
+                <span class='fraction'>63/82</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>3/3</span>
+                <span class='fraction'>4/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">66.66% </span>
+                <span class="strong">60% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>2/3</span>
+                <span class='fraction'>3/5</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">73.61% </span>
+                <span class="strong">76.82% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>53/72</span>
+                <span class='fraction'>63/82</span>
             </div>
         
             
@@ -135,7 +135,27 @@
 <a name='L70'></a><a href='#L70'>70</a>
 <a name='L71'></a><a href='#L71'>71</a>
 <a name='L72'></a><a href='#L72'>72</a>
-<a name='L73'></a><a href='#L73'>73</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -209,6 +229,7 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import type { ReactNode } from "react";
 import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import LandingPage from "./pages/LandingPage";
@@ -217,6 +238,7 @@ import SellPage from "./pages/SellPage";
 import DashboardPage from "./pages/DashboardPage";
 import AgentPage from "./pages/AgentPage";
 import { useI18n } from "./i18n";
+import ErrorBoundary from "./components/ErrorBoundary";
 &nbsp;
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -248,15 +270,23 @@ export default function App() {
       &lt;OnboardingTour /&gt;
       &lt;main id="main-content" tabIndex={-1}&gt;
         &lt;Routes&gt;
-        &lt;Route path="/" element={&lt;LandingPage /&gt;} /&gt;
-        &lt;Route path="/marketplace" element={&lt;MarketplacePage /&gt;} /&gt;
-        &lt;Route path="/sell" element={&lt;SellPage /&gt;} /&gt;
-        &lt;Route path="/dashboard" element={&lt;DashboardPage /&gt;} /&gt;
-        &lt;Route path="/agent" element={&lt;AgentPage /&gt;} /&gt;
-        &lt;Route path="*" element={&lt;NotFound /&gt;} /&gt;
-      &lt;/Routes&gt;
+          &lt;Route path="/" element={&lt;RouteBoundary label="Landing"&gt;&lt;LandingPage /&gt;&lt;/RouteBoundary&gt;} /&gt;
+          &lt;Route path="/marketplace" element={&lt;RouteBoundary label="Marketplace"&gt;&lt;MarketplacePage /&gt;&lt;/RouteBoundary&gt;} /&gt;
+          &lt;Route path="/sell" element={&lt;RouteBoundary label="Sell"&gt;&lt;SellPage /&gt;&lt;/RouteBoundary&gt;} /&gt;
+          &lt;Route path="/dashboard" element={&lt;RouteBoundary label="Dashboard"&gt;&lt;DashboardPage /&gt;&lt;/RouteBoundary&gt;} /&gt;
+          &lt;Route path="/agent" element={&lt;RouteBoundary label="Agent"&gt;&lt;AgentPage /&gt;&lt;/RouteBoundary&gt;} /&gt;
+          &lt;Route path="*" element={&lt;RouteBoundary&gt;&lt;NotFound /&gt;&lt;/RouteBoundary&gt;} /&gt;
+        &lt;/Routes&gt;
       &lt;/main&gt;
     &lt;/BrowserRouter&gt;
+  );
+}
+&nbsp;
+function RouteBoundary({ children, label }: { children: ReactNode; label?: string }) {
+  return (
+    &lt;ErrorBoundary label={label} onReset={<span class="fstat-no" title="function not covered" >() =&gt; window.location.reload()}&gt;</span>
+      {children}
+    &lt;/ErrorBoundary&gt;
   );
 }
 &nbsp;
@@ -286,7 +316,7 @@ export default function App() {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-25T10:11:41.741Z
+                at 2026-04-25T23:05:41.622Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

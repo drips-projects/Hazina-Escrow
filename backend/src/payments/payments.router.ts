@@ -9,10 +9,9 @@ import {
   txHashUsed,
 } from "../common/storage";
 import { validateBody } from "../common/validate";
-import { verifyStellarPayment } from "./stellar.service";
 import { generateDataSummary } from "../ai/claude.service";
-import { sendUsdcPayment } from "../agent/agent.wallet";
 import { notifySeller } from "../webhooks/webhook.service";
+import { getEscrow, releaseEscrow, refundEscrow, usdcToStroops } from "../lib/contract.client";
 import { sanitizeUserText } from "../common/sanitize";
 import { requireAdminKey } from "../common/auth.middleware";
 
@@ -21,7 +20,7 @@ export const paymentsRouter = Router();
 const SELLER_PAYOUT_WARNING = "SELLER_PAYOUT_PENDING";
 
 const verifySchema = z.object({
-  txHash: z.string().trim().min(1, "txHash is required").max(200),
+  escrowId: z.number().int().nonnegative(),
   buyerQuestion: z
     .string()
     .max(500)
@@ -94,10 +93,11 @@ const verifyDemoSchema = z.object({
  *           schema:
  *             type: object
  *             required:
- *               - txHash
+ *               - escrowId
  *             properties:
- *               txHash:
- *                 type: string
+ *               escrowId:
+ *                 type: integer
+ *                 description: The escrow_id returned by lock() on the Soroban contract
  *               buyerQuestion:
  *                 type: string
  *     responses:
@@ -172,33 +172,50 @@ paymentsRouter.post("/query/:id", (req: Request, res: Response) => {
   });
 });
 
-// POST /api/verify/:id — verify payment and release data
+// POST /api/verify/:id — verify on-chain escrow lock and release funds via Soroban contract
 paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Request, res: Response) => {
-  const { txHash, buyerQuestion } = req.body as z.infer<typeof verifySchema>;
+  const { escrowId, buyerQuestion } = req.body as z.infer<typeof verifySchema>;
   const dataset = getDataset(req.params.id);
 
   if (!dataset) return res.status(404).json({ error: "Dataset not found" });
 
-  // Check replay
-  if (txHashUsed(txHash)) {
-    return res.status(400).json({ error: "Transaction hash already used" });
+  const escrowKey = `escrow-${escrowId}`;
+  if (txHashUsed(escrowKey)) {
+    return res.status(400).json({ error: "Escrow already processed" });
   }
 
   try {
-    // Verify on Stellar testnet
-    const verification = await verifyStellarPayment({
-      txHash,
-      expectedAmount: dataset.pricePerQuery,
-      destinationAddress: process.env.ESCROW_WALLET || dataset.sellerWallet,
-    });
-
-    if (!verification.valid) {
-      return res
-        .status(400)
-        .json({ error: verification.reason || "Payment verification failed" });
+    // Verify the lock exists on the Soroban contract
+    let escrow;
+    try {
+      escrow = await getEscrow(escrowId);
+    } catch (err) {
+      return res.status(400).json({
+        error: `Escrow #${escrowId} not found on contract: ${err instanceof Error ? err.message : err}`,
+      });
     }
 
-    // Generate AI summary
+    if (escrow.released) {
+      return res.status(400).json({ error: "Escrow already released" });
+    }
+    if (escrow.refunded) {
+      return res.status(400).json({ error: "Escrow already refunded" });
+    }
+    if (escrow.dataset_id !== dataset.id) {
+      return res.status(400).json({
+        error: `Escrow dataset mismatch: expected ${dataset.id}, got ${escrow.dataset_id}`,
+      });
+    }
+
+    const expectedStroops = usdcToStroops(dataset.pricePerQuery);
+    const tolerance = usdcToStroops(0.001);
+    if (escrow.amount < expectedStroops - tolerance) {
+      return res.status(400).json({
+        error: `Escrow amount too low: expected ${expectedStroops} stroops, got ${escrow.amount}`,
+      });
+    }
+
+    // Generate AI summary — refund and abort if this fails
     let summary = "";
     let answer: string | undefined;
     try {
@@ -206,33 +223,25 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
       summary = result.summary;
       answer = result.answer;
     } catch (aiErr) {
-      console.warn("AI summary failed, proceeding without:", aiErr);
-      summary =
-        "Data delivered successfully. AI summary temporarily unavailable.";
+      console.error("[Escrow] AI step failed — refunding buyer:", aiErr);
+      try {
+        const refundTxHash = await refundEscrow(escrowId);
+        console.log(`[Escrow] Refunded escrow #${escrowId} → ${refundTxHash}`);
+      } catch (refundErr) {
+        console.error("[Escrow] Refund also failed:", refundErr);
+      }
+      return res.status(500).json({ error: "AI processing failed — escrow refunded" });
     }
 
-    // Forward 95% to seller on-chain
-    let sellerTxHash: string | undefined;
-    let sellerPayoutError: string | undefined;
+    // Release funds on-chain: contract pays 95% to seller, 5% to admin
+    let releaseTxHash: string | undefined;
     const sellerAmount = parseFloat((dataset.pricePerQuery * 0.95).toFixed(7));
     let sellerPaid = false;
     try {
-      const payment = await sendUsdcPayment({
-        destinationAddress: dataset.sellerWallet,
-        amount: sellerAmount.toFixed(7),
-        memo: `hazina-${dataset.id.slice(0, 10)}`,
-      });
-      sellerTxHash = payment.txHash;
-      sellerPaid = true;
-      console.log(
-        `[Escrow] Paid seller ${sellerAmount} USDC → ${dataset.sellerWallet} (${sellerTxHash})`,
-      );
-    } catch (payErr) {
-      sellerPayoutError = payErr instanceof Error ? payErr.message : String(payErr);
-      console.warn(
-        "[Escrow] Seller payment failed (data still delivered):",
-        sellerPayoutError,
-      );
+      releaseTxHash = await releaseEscrow(escrowId);
+      console.log(`[Escrow] Released escrow #${escrowId} → ${releaseTxHash}`);
+    } catch (releaseErr) {
+      console.error("[Escrow] Release failed:", releaseErr);
     }
 
     // Update dataset stats
@@ -241,11 +250,11 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
       totalEarned: parseFloat((dataset.totalEarned + (sellerPaid ? sellerAmount : 0)).toFixed(4)),
     });
 
-    // Log transaction
+    // Log transaction (escrowKey used as txHash for replay protection)
     addTransaction({
       id: `tx-${uuidv4()}`,
       datasetId: dataset.id,
-      txHash,
+      txHash: escrowKey,
       amount: dataset.pricePerQuery,
       sellerPaid,
       sellerAmount,
@@ -260,16 +269,16 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
     notifySeller(dataset.sellerWallet, "payment.received", {
       datasetId: dataset.id,
       datasetName: dataset.name,
-      buyerTxHash: txHash,
+      escrowId,
       amount: dataset.pricePerQuery,
       buyerQuery: buyerQuestion,
     }).catch(() => {});
 
-    if (sellerTxHash) {
+    if (releaseTxHash) {
       notifySeller(dataset.sellerWallet, "payment.forwarded", {
         datasetId: dataset.id,
         datasetName: dataset.name,
-        sellerTxHash,
+        releaseTxHash,
         amount: sellerAmount,
       }).catch(() => {});
     }
@@ -280,12 +289,12 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
       data: dataset.data,
       ai: { summary, answer },
       transaction: {
-        hash: txHash,
+        escrowId,
         amount: dataset.pricePerQuery,
         sellerReceived: sellerPaid ? sellerAmount : 0,
         sellerPaid,
         platformFee: parseFloat((dataset.pricePerQuery * 0.05).toFixed(4)),
-        sellerTxHash: sellerTxHash ?? null,
+        releaseTxHash: releaseTxHash ?? null,
       },
     });
   } catch (err) {
