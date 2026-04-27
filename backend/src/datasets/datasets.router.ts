@@ -266,6 +266,32 @@ datasetsRouter.get('/stats', (_req: Request, res: Response) => {
 
 /**
  * @openapi
+ * /api/datasets/transactions:
+ *   get:
+ *     summary: Get all transactions across all datasets
+ *     description: Retrieve all transactions in a single call (no dataset filter)
+ *     responses:
+ *       200:
+ *         description: List of all transactions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 transactions:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ */
+datasetsRouter.get('/transactions', (_req: Request, res: Response) => {
+  const transactions = getTransactions();
+  return res.json({ success: true, transactions });
+});
+
+/**
+ * @openapi
  * /api/datasets/{id}:
  *   get:
  *     summary: Get dataset by ID

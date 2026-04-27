@@ -128,7 +128,7 @@ export default function LandingPage() {
     api
       .getDatasets()
       .then((ds) => {
-        setFeatured(ds.slice(0, 3));
+        setFeatured(ds.data.slice(0, 3));
         setFeaturedError(null);
       })
       .catch((err: unknown) => {

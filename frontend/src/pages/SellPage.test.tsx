@@ -74,11 +74,12 @@ describe('SellPage', () => {
   });
 
   it('submits, shows loading state, then success state', async () => {
-    let resolveRequest: ((value: unknown) => void) | undefined;
+    type CreatedDataset = Awaited<ReturnType<typeof api.createDataset>>;
+    let resolveRequest: ((value: CreatedDataset) => void) | undefined;
     vi.mocked(api.createDataset).mockReturnValueOnce(
-      new Promise((resolve) => {
+      new Promise<CreatedDataset>((resolve) => {
         resolveRequest = resolve;
-      }) as Promise<never>,
+      }),
     );
 
     renderSellPage();
@@ -102,6 +103,13 @@ describe('SellPage', () => {
     resolveRequest?.({
       id: 'ds-1',
       name: 'Test Dataset',
+      description: 'A useful dataset description',
+      type: 'whale-wallets',
+      pricePerQuery: 0.05,
+      sellerWallet: validWallet,
+      queriesServed: 0,
+      totalEarned: 0,
+      createdAt: new Date().toISOString(),
     });
 
     await waitFor(() => {

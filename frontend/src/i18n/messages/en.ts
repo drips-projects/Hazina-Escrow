@@ -22,6 +22,7 @@ export const en = {
       done: "Done",
       downloadJson: "Download JSON",
       tryAgain: "Try Again",
+      retry: "Retry",
       openStellarLab: "Open Stellar Laboratory",
       viewMarketplace: "View Marketplace",
       listAnother: "List Another",
@@ -291,6 +292,7 @@ export const en = {
     eyebrow: "Seller Hub",
     title: "Dashboard",
     subtitle: "Your real-time earnings and dataset performance.",
+    loadError: "Could not load dashboard",
     allSellers: "All Sellers",
     stats: {
       totalEarned: "Total USDC Earned",
@@ -365,7 +367,7 @@ export const en = {
       bearish: "Bearish",
     },
   },
-  queryModal: {
+	  queryModal: {
     verifyingStages: [
       "Checking Stellar blockchain…",
       "Simulating payment on Stellar testnet…",
@@ -373,10 +375,11 @@ export const en = {
       "Generating AI analysis…",
       "Preparing your results…",
     ],
-    details: {
-      pricePerQuery: "Price per Query",
-      queriesSold: "Queries Sold",
-      seller: "Seller",
+	    details: {
+	      title: "Dataset details",
+	      pricePerQuery: "Price per Query",
+	      queriesSold: "Queries Sold",
+	      seller: "Seller",
       network: "Network",
       askQuestion: "Ask Claude a question about this data",
       questionPlaceholder:

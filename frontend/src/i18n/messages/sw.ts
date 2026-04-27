@@ -22,6 +22,7 @@ export const sw: EnglishMessages = {
       done: "Imekamilika",
       downloadJson: "Pakua JSON",
       tryAgain: "Jaribu tena",
+      retry: "Jaribu tena",
       openStellarLab: "Fungua Stellar Laboratory",
       viewMarketplace: "Tazama soko",
       listAnother: "Orodhesha nyingine",
@@ -36,6 +37,8 @@ export const sw: EnglishMessages = {
       listNewDataset: "Orodhesha dataset mpya",
       listFirstDataset: "Orodhesha dataset yako ya kwanza",
       resetSearch: "Weka upya utafutaji",
+      copyAddress: "Nakili anwani",
+      copyMemo: "Nakili memo",
     },
     labels: {
       price: "Bei",
@@ -194,11 +197,13 @@ export const sw: EnglishMessages = {
     subtitle:
       "Maarifa bora ya on-chain, yenye bei kwa kila swali. Lipa tu kwa unachohitaji.",
     searchPlaceholder: "Tafuta dataset...",
+    filterBy: "Chuja kwa {type}",
     pagination: {
       previous: "Iliyotangulia",
       next: "Ifuatayo",
       page: "Ukurasa wa {current} kati ya {total}",
       showing: "Inaonyesha {start}-{end} kati ya {total}",
+      goToPage: "Nenda kwenye ukurasa {page}",
     },
     sorts: {
       popular: "Maarufu zaidi",
@@ -287,6 +292,7 @@ export const sw: EnglishMessages = {
     eyebrow: "Kituo cha wauzaji",
     title: "Dashibodi",
     subtitle: "Mapato yako ya wakati halisi na utendaji wa dataset zako.",
+    loadError: "Imeshindikana kupakia dashibodi",
     allSellers: "Wauzaji wote",
     stats: {
       totalEarned: "Jumla ya USDC iliyopatikana",
@@ -370,6 +376,7 @@ export const sw: EnglishMessages = {
       "Inaandaa matokeo yako…",
     ],
     details: {
+      title: "Maelezo ya dataset",
       pricePerQuery: "Bei kwa kila swali",
       queriesSold: "Maswali yaliyouzwa",
       seller: "Muuzaji",

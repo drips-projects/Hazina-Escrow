@@ -72,6 +72,9 @@ Buyer           Contract              Seller
 | Function | Who Calls It | What It Does |
 |---|---|---|
 | `initialize(admin, fee_bps)` | Deployer (once) | Sets the admin address and default platform fee (500 = 5%) |
+| `pause(admin)` | Hazina backend (admin) | Emergency circuit breaker: disables `lock`/`lock_multi` and `release`/`release_multi` |
+| `unpause(admin)` | Hazina backend (admin) | Resumes normal operations after a pause |
+| `is_paused()` | Anyone | Returns whether the contract is currently paused |
 | `set_default_fee(admin, fee_bps)` | Hazina backend (admin) | Updates the fallback fee used when no dataset override exists |
 | `set_dataset_fee(admin, dataset_id, fee_bps)` | Hazina backend (admin) | Sets a custom platform fee for a specific dataset |
 | `clear_dataset_fee(admin, dataset_id)` | Hazina backend (admin) | Removes a dataset-specific fee override |

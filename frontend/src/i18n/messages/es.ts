@@ -22,6 +22,7 @@ export const es: EnglishMessages = {
       done: "Listo",
       downloadJson: "Descargar JSON",
       tryAgain: "Intentar de nuevo",
+      retry: "Reintentar",
       openStellarLab: "Abrir Stellar Laboratory",
       viewMarketplace: "Ver marketplace",
       listAnother: "Publicar otro",
@@ -36,6 +37,8 @@ export const es: EnglishMessages = {
       listNewDataset: "Publicar nuevo dataset",
       listFirstDataset: "Publica tu primer dataset",
       resetSearch: "Restablecer búsqueda",
+      copyAddress: "Copiar dirección",
+      copyMemo: "Copiar memo",
     },
     labels: {
       price: "Precio",
@@ -194,11 +197,13 @@ export const es: EnglishMessages = {
     subtitle:
       "Inteligencia on-chain premium, con precio por consulta. Paga solo por lo que necesitas.",
     searchPlaceholder: "Buscar datasets...",
+    filterBy: "Filtrar por {type}",
     pagination: {
       previous: "Anterior",
       next: "Siguiente",
       page: "Página {current} de {total}",
       showing: "Mostrando {start}-{end} de {total}",
+      goToPage: "Ir a la página {page}",
     },
     sorts: {
       popular: "Más popular",
@@ -288,6 +293,7 @@ export const es: EnglishMessages = {
     eyebrow: "Centro del vendedor",
     title: "Panel",
     subtitle: "Tus ganancias en tiempo real y el rendimiento de tus datasets.",
+    loadError: "No se pudo cargar el panel",
     allSellers: "Todos los vendedores",
     stats: {
       totalEarned: "USDC totales ganados",
@@ -371,6 +377,7 @@ export const es: EnglishMessages = {
       "Preparando tus resultados…",
     ],
     details: {
+      title: "Detalles del dataset",
       pricePerQuery: "Precio por consulta",
       queriesSold: "Consultas vendidas",
       seller: "Vendedor",

@@ -91,6 +91,49 @@ describe('QueryModal', () => {
     });
   });
 
+  it('revokes the Object URL after downloading JSON', async () => {
+    const createObjectURL = vi.fn(() => 'blob:mock');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, writable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, writable: true });
+
+    vi.mocked(api.demoQuery).mockResolvedValueOnce({
+      success: true,
+      demo: true,
+      data: { rows: [1, 2] },
+      ai: {
+        summary: 'Summary text',
+        answer: 'Answer text',
+      },
+      transaction: {
+        hash: 'demo-hash',
+        amount: 0.05,
+        sellerReceived: 0.0475,
+        platformFee: 0.0025,
+      },
+    });
+
+    renderModal();
+    fireEvent.click(screen.getByRole('button', { name: 'Proceed to Payment' }));
+
+    await waitFor(() => {
+      expect(api.initiateQuery).toHaveBeenCalledWith('ds-query-1');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Get AI Analysis' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Payment Verified')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download JSON' }));
+
+    await waitFor(() => {
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock');
+    });
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+  });
+
   it('shows error state for failed verification and allows retry', async () => {
     vi.mocked(api.verifyPayment).mockRejectedValueOnce(new Error('Verification failed'));
 
