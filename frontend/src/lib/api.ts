@@ -54,108 +54,6 @@ export const API_BASE_URL = RAW_API_URL
 const BASE = API_BASE_URL;
 const API_KEY = (import.meta.env.VITE_API_KEY ?? '').toString().trim();
 
-interface RequestOptions extends RequestInit {
-  /** Per-call override of the abort timeout, in milliseconds. */
-  timeoutMs?: number;
-}
-
-function authHeaders(extra?: HeadersInit): HeadersInit {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (API_KEY) headers['Authorization'] = `Bearer ${API_KEY}`;
-  return { ...headers, ...(extra as Record<string, string>) };
-}
-
-async function fetchWithTimeout(url: string, options?: RequestOptions): Promise<Response> {
-  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...init } = options ?? {};
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, {
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      ...init,
-    });
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('Request timed out — please try again');
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// ── Runtime response validation ────────────────────────────────────────────
-
-export class ApiValidationError extends Error {
-  constructor(
-    message: string,
-    public readonly field?: string,
-  ) {
-    super(message);
-    this.name = "ApiValidationError";
-  }
-}
-
-function assertString(value: unknown, field: string): asserts value is string {
-  if (typeof value !== "string") {
-    throw new ApiValidationError(`Expected string for "${field}", got ${typeof value}`, field);
-  }
-}
-
-function assertNumber(value: unknown, field: string): asserts value is number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new ApiValidationError(`Expected finite number for "${field}", got ${typeof value}`, field);
-  }
-}
-
-function assertArray(value: unknown, field: string): asserts value is unknown[] {
-  if (!Array.isArray(value)) {
-    throw new ApiValidationError(`Expected array for "${field}", got ${typeof value}`, field);
-  }
-}
-
-function assertObject(value: unknown, field: string): asserts value is Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new ApiValidationError(`Expected object for "${field}", got ${typeof value}`, field);
-  }
-}
-
-/** Validate a Stats object from the API. */
-function validateStats(raw: unknown): Stats {
-  assertObject(raw, "stats");
-  assertNumber(raw.totalDatasets, "stats.totalDatasets");
-  assertNumber(raw.totalQueries, "stats.totalQueries");
-  assertNumber(raw.totalUsdcEarned, "stats.totalUsdcEarned");
-  assertNumber(raw.totalTransactions, "stats.totalTransactions");
-  return raw as unknown as Stats;
-}
-
-/** Validate a DatasetMeta object from the API. */
-function validateDataset(raw: unknown, index?: number): DatasetMeta {
-  const label = index !== undefined ? `dataset[${index}]` : "dataset";
-  assertObject(raw, label);
-  assertString(raw.id, `${label}.id`);
-  assertString(raw.name, `${label}.name`);
-  assertString(raw.type, `${label}.type`);
-  assertNumber(raw.pricePerQuery, `${label}.pricePerQuery`);
-  assertString(raw.sellerWallet, `${label}.sellerWallet`);
-  return raw as unknown as DatasetMeta;
-}
-
-// ── HTTP helper ────────────────────────────────────────────────────────────
-
-async function request<T>(url: string, options?: RequestOptions): Promise<T> {
-  return scheduleRequest(getRequestKey(url, options), async () => {
-    const res = await fetchWithTimeout(url, options);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Network error' }));
-      throw new Error(err.error || `HTTP ${res.status}`);
-    }
-    return res.json();
-  });
-}
-
 // ── Public interfaces ──────────────────────────────────────────────────────
 
 export interface AgentSellerPayment {
@@ -267,6 +165,7 @@ export interface QueryResult {
     platformFee: number;
   };
 }
+
 
 interface RequestOptions extends RequestInit {
   /** Per-call override of the abort timeout, in milliseconds. */

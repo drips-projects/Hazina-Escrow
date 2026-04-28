@@ -94,7 +94,7 @@ describe('QueryModal', () => {
     expect(onSuccess).toHaveBeenCalledWith({
       id: 'ds-query-1',
       queriesServed: 13,
-      totalEarned: 3.5475,
+      totalEarned: 3.5,
     });
   });
 
