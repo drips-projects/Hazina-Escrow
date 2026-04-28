@@ -71,11 +71,11 @@ const describeSocket = process.env.ALLOW_SOCKET_TESTS === '1' ? describe : descr
 describeSocket('payments and agent integration routes', () => {
   let app: Express;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     if (fs.existsSync(DATA_PATH)) {
       fs.copyFileSync(DATA_PATH, BACKUP_PATH);
     }
-    writeStore(BASE_STORE);
+    await writeStore(BASE_STORE);
 
     app = makeApp();
     process.env.ESCROW_WALLET = ESCROW_WALLET;
@@ -172,7 +172,7 @@ describeSocket('payments and agent integration routes', () => {
   });
 
   it('POST /api/verify/:id rejects replayed transaction hash', async () => {
-    writeStore({
+    await writeStore({
       ...BASE_STORE,
       transactions: [
         {

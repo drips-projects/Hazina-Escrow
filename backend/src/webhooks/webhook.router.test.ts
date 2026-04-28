@@ -18,14 +18,14 @@ const BACKUP_PATH = path.join(__dirname, "../../../data/datasets.json.bak");
 describe("Webhook Router", () => {
   let app: Express;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Backup current store
     if (fs.existsSync(DATA_PATH)) {
       fs.copyFileSync(DATA_PATH, BACKUP_PATH);
     }
     // Seed clean store
     const clean: Store = { datasets: [], transactions: [], webhooks: [] };
-    writeStore(clean);
+    await writeStore(clean);
 
     app = express();
     app.use(express.json());

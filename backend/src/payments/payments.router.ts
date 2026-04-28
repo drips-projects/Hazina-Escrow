@@ -139,8 +139,8 @@ const verifyDemoSchema = z.object({
 
 
 // POST /api/query/:id — initiate query, returns 402 Payment Required
-paymentsRouter.post("/query/:id", (req: Request, res: Response) => {
-  const dataset = getDataset(req.params.id);
+paymentsRouter.post("/query/:id", async (req: Request, res: Response) => {
+  const dataset = await getDataset(req.params.id);
   if (!dataset) return res.status(404).json({ error: "Dataset not found" });
 
   const timestamp = Date.now();
@@ -175,12 +175,12 @@ paymentsRouter.post("/query/:id", (req: Request, res: Response) => {
 // POST /api/verify/:id — verify on-chain escrow lock and release funds via Soroban contract
 paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Request, res: Response) => {
   const { escrowId, buyerQuestion } = req.body as z.infer<typeof verifySchema>;
-  const dataset = getDataset(req.params.id);
+  const dataset = await getDataset(req.params.id);
 
   if (!dataset) return res.status(404).json({ error: "Dataset not found" });
 
   const escrowKey = `escrow-${escrowId}`;
-  if (txHashUsed(escrowKey)) {
+  if (await txHashUsed(escrowKey)) {
     return res.status(400).json({ error: "Escrow already processed" });
   }
 
@@ -245,13 +245,13 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
     }
 
     // Update dataset stats
-    updateDataset(dataset.id, {
+    await updateDataset(dataset.id, {
       queriesServed: dataset.queriesServed + 1,
       totalEarned: parseFloat((dataset.totalEarned + (sellerPaid ? sellerAmount : 0)).toFixed(4)),
     });
 
     // Log transaction (escrowKey used as txHash for replay protection)
-    addTransaction({
+    await addTransaction({
       id: `tx-${uuidv4()}`,
       datasetId: dataset.id,
       txHash: escrowKey,
@@ -306,7 +306,7 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
 // POST /api/verify/:id/demo — demo mode (skip Stellar check) for hackathon
 paymentsRouter.post("/verify/:id/demo", validateBody(verifyDemoSchema), async (req: Request, res: Response) => {
   const { buyerQuestion } = req.body as z.infer<typeof verifyDemoSchema>;
-  const dataset = getDataset(req.params.id);
+  const dataset = await getDataset(req.params.id);
 
   if (!dataset) return res.status(404).json({ error: "Dataset not found" });
 
@@ -322,14 +322,14 @@ paymentsRouter.post("/verify/:id/demo", validateBody(verifyDemoSchema), async (r
       "Demo mode: AI summary unavailable. Set ANTHROPIC_API_KEY to enable.";
   }
 
-  updateDataset(dataset.id, {
+  await updateDataset(dataset.id, {
     queriesServed: dataset.queriesServed + 1,
     totalEarned: parseFloat(
       (dataset.totalEarned + dataset.pricePerQuery * 0.95).toFixed(4),
     ),
   });
 
-  addTransaction({
+  await addTransaction({
     id: `tx-demo-${uuidv4()}`,
     datasetId: dataset.id,
     txHash: `demo-${Date.now()}`,

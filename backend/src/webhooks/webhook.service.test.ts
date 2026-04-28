@@ -151,7 +151,7 @@ describe("Webhook Service", () => {
         },
       ];
 
-      vi.mocked(storage.getWebhooksForSeller).mockReturnValue(webhooks);
+      vi.mocked(storage.getWebhooksForSeller).mockResolvedValue(webhooks);
 
       const resA = new EventEmitter();
       (resA as any).statusCode = 200;
@@ -190,7 +190,7 @@ describe("Webhook Service", () => {
         },
       ];
 
-      vi.mocked(storage.getWebhooksForSeller).mockReturnValue(webhooks);
+      vi.mocked(storage.getWebhooksForSeller).mockResolvedValue(webhooks);
 
       const res = new EventEmitter();
       (res as any).statusCode = 200;
@@ -211,7 +211,7 @@ describe("Webhook Service", () => {
     });
 
     it("does nothing when no webhooks exist", async () => {
-      vi.mocked(storage.getWebhooksForSeller).mockReturnValue([]);
+      vi.mocked(storage.getWebhooksForSeller).mockResolvedValue([]);
       await notifySeller("G999", "ping", {});
       expect(requestMock).not.toHaveBeenCalled();
     });

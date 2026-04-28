@@ -87,7 +87,7 @@ const updateWebhookSchema = z
   );
 
 // POST /api/webhooks — register a new webhook
-webhooksRouter.post('/', requireApiKey, validateBody(createWebhookSchema), (req: Request, res: Response) => {
+webhooksRouter.post('/', requireApiKey, validateBody(createWebhookSchema), async (req: Request, res: Response) => {
   const { sellerWallet, url, secret, events } = req.body as z.infer<typeof createWebhookSchema>;
 
   const webhook = {
@@ -100,7 +100,7 @@ webhooksRouter.post('/', requireApiKey, validateBody(createWebhookSchema), (req:
     createdAt: new Date().toISOString(),
   };
 
-  addWebhook(webhook);
+  await addWebhook(webhook);
 
   return res.status(201).json({
     success: true,
@@ -116,8 +116,8 @@ webhooksRouter.post('/', requireApiKey, validateBody(createWebhookSchema), (req:
 });
 
 // GET /api/webhooks/:sellerWallet — list webhooks for a seller
-webhooksRouter.get('/:sellerWallet', (req: Request, res: Response) => {
-  const webhooks = getWebhooksForSeller(req.params.sellerWallet);
+webhooksRouter.get('/:sellerWallet', async (req: Request, res: Response) => {
+  const webhooks = await getWebhooksForSeller(req.params.sellerWallet);
   return res.json({
     success: true,
     webhooks: webhooks.map(({ secret: _secret, ...rest }) => rest),
@@ -125,18 +125,18 @@ webhooksRouter.get('/:sellerWallet', (req: Request, res: Response) => {
 });
 
 // DELETE /api/webhooks/:id — remove a webhook
-webhooksRouter.delete('/:id', requireApiKey, (req: Request, res: Response) => {
-  const webhook = getWebhookById(req.params.id);
+webhooksRouter.delete('/:id', requireApiKey, async (req: Request, res: Response) => {
+  const webhook = await getWebhookById(req.params.id);
   if (!webhook) {
     return res.status(404).json({ error: 'Webhook not found' });
   }
-  removeWebhook(req.params.id);
+  await removeWebhook(req.params.id);
   return res.json({ success: true, message: 'Webhook deleted' });
 });
 
 // POST /api/webhooks/:id/test — send a test ping event
 webhooksRouter.post('/:id/test', requireApiKey, async (req: Request, res: Response) => {
-  const webhook = getWebhookById(req.params.id);
+  const webhook = await getWebhookById(req.params.id);
   if (!webhook) {
     return res.status(404).json({ error: 'Webhook not found' });
   }
@@ -157,14 +157,14 @@ webhooksRouter.post('/:id/test', requireApiKey, async (req: Request, res: Respon
 });
 
 // PATCH /api/webhooks/:id — update webhook (url, secret, events, active)
-webhooksRouter.patch('/:id', requireApiKey, validateBody(updateWebhookSchema), (req: Request, res: Response) => {
-  const webhook = getWebhookById(req.params.id);
+webhooksRouter.patch('/:id', requireApiKey, validateBody(updateWebhookSchema), async (req: Request, res: Response) => {
+  const webhook = await getWebhookById(req.params.id);
   if (!webhook) {
     return res.status(404).json({ error: 'Webhook not found' });
   }
 
   const updates = req.body as z.infer<typeof updateWebhookSchema>;
-  const updated = updateWebhook(req.params.id, updates);
+  const updated = await updateWebhook(req.params.id, updates);
   if (!updated) {
     return res.status(500).json({ error: 'Failed to update webhook' });
   }

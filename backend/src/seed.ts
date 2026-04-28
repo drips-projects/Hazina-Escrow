@@ -24,11 +24,11 @@ const generateStellarAddress = () => {
   return 'G' + faker.string.fromCharacters('ABCDEFGHIJKLMNOPQRSTUVWXYZ234567', 55);
 };
 
-const seed = () => {
+const seed = async () => {
   const clean = process.argv.includes('--clean');
   console.log(`Starting seeding... ${clean ? '(Cleaning existing data)' : '(Appending to existing data)'}`);
 
-  const store: Store = clean ? { datasets: [], transactions: [], webhooks: [] } : readStore();
+  const store: Store = clean ? { datasets: [], transactions: [], webhooks: [] } : await readStore();
 
   // Generate Datasets
   const numDatasets = 25;
@@ -88,8 +88,8 @@ const seed = () => {
     store.transactions.push(tx);
   }
 
-  writeStore(store);
+  await writeStore(store);
   console.log(`Seeding complete! Total in store: ${store.datasets.length} datasets, ${store.transactions.length} transactions.`);
 };
 
-seed();
+seed().catch(console.error);

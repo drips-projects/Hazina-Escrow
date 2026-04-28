@@ -170,7 +170,7 @@ export const datasetsRouter = Router();
 
 
 // GET /api/datasets — list datasets with pagination, filtering, and sorting
-datasetsRouter.get('/', (req: Request, res: Response) => {
+datasetsRouter.get('/', async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 12;
   const search = (req.query.search as string || '').toLowerCase();
@@ -185,7 +185,7 @@ datasetsRouter.get('/', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Limit exceeds maximum of 50' });
   }
 
-  let datasets = getAllDatasets().map(({ data: _data, ...rest }) => rest);
+  let datasets = (await getAllDatasets()).map(({ data: _data, ...rest }) => rest);
 
   // Filter
   if (search) {
@@ -250,9 +250,9 @@ datasetsRouter.get('/', (req: Request, res: Response) => {
  *                     totalTransactions:
  *                       type: integer
  */
-datasetsRouter.get('/stats', (_req: Request, res: Response) => {
-  const datasets = getAllDatasets();
-  const transactions = getTransactions();
+datasetsRouter.get('/stats', async (_req: Request, res: Response) => {
+  const datasets = await getAllDatasets();
+  const transactions = await getTransactions();
   res.json({
     success: true,
     stats: {
@@ -317,8 +317,8 @@ datasetsRouter.get('/transactions', (_req: Request, res: Response) => {
  *       404:
  *         description: Dataset not found
  */
-datasetsRouter.get('/:id', (req: Request, res: Response) => {
-  const dataset = getDataset(req.params.id);
+datasetsRouter.get('/:id', async (req: Request, res: Response) => {
+  const dataset = await getDataset(req.params.id);
   if (!dataset) return res.status(404).json({ error: 'Dataset not found' });
   const { data: _data, ...meta } = dataset;
   return res.json({ success: true, dataset: meta });
@@ -351,14 +351,14 @@ datasetsRouter.get('/:id', (req: Request, res: Response) => {
  *                   items:
  *                     type: object
  */
-datasetsRouter.get('/:id/transactions', (req: Request, res: Response) => {
-  const dataset = getDataset(req.params.id);
+datasetsRouter.get('/:id/transactions', async (req: Request, res: Response) => {
+  const dataset = await getDataset(req.params.id);
   if (!dataset) return res.status(404).json({ error: 'Dataset not found' });
-  
+
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
   const offset = parseInt(req.query.offset as string) || 0;
-  const transactions = getTransactions(req.params.id, limit, offset);
-  const total = getTransactionsCount(req.params.id);
+  const transactions = await getTransactions(req.params.id, limit, offset);
+  const total = await getTransactionsCount(req.params.id);
   
   return res.json({ success: true, transactions, total, limit, offset });
 });
@@ -401,7 +401,7 @@ datasetsRouter.get('/:id/transactions', (req: Request, res: Response) => {
  *       400:
  *         description: Missing required fields or invalid price
  */
-datasetsRouter.post('/', requireApiKey, validateBody(createDatasetSchema), (req: Request, res: Response) => {
+datasetsRouter.post('/', requireApiKey, validateBody(createDatasetSchema), async (req: Request, res: Response) => {
   const { name, description, type, pricePerQuery, sellerWallet, data } =
     req.body as z.infer<typeof createDatasetSchema>;
 
@@ -418,7 +418,7 @@ datasetsRouter.post('/', requireApiKey, validateBody(createDatasetSchema), (req:
     createdAt: new Date().toISOString(),
   };
 
-  addDataset(dataset);
+  await addDataset(dataset);
 
   // Notify seller via webhook
   notifySeller(dataset.sellerWallet, 'dataset.created', {

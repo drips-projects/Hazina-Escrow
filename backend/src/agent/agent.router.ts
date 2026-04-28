@@ -108,8 +108,8 @@ const researchDemoSchema = z.object({
 
 
 // GET /api/agent/info — agent wallet address and capabilities
-agentRouter.get('/info', (_req: Request, res: Response) => {
-  const datasets = getAllDatasets();
+agentRouter.get('/info', async (_req: Request, res: Response) => {
+  const datasets = await getAllDatasets();
 
   const sellers = SELLER_TYPES.map(st => {
     const ds = datasets.find(d => d.type === st.type);
