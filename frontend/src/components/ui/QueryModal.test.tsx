@@ -77,7 +77,11 @@ describe('QueryModal', () => {
       expect(api.initiateQuery).toHaveBeenCalledWith('ds-query-1');
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Get AI Analysis' }));
+    // Demo mode is ON by default — button reads "Get AI Analysis"
+    const analyzeButton = await waitFor(() =>
+      screen.getByRole('button', { name: 'Get AI Analysis' }),
+    );
+    fireEvent.click(analyzeButton);
 
     await waitFor(() => {
       expect(screen.getByText('Payment Verified')).toBeTruthy();
@@ -144,9 +148,13 @@ describe('QueryModal', () => {
       expect(api.initiateQuery).toHaveBeenCalled();
     });
 
+    // Demo mode starts ON — uncheck it to switch to real payment mode
     fireEvent.click(screen.getByLabelText(/Demo mode/i));
 
-    const verifyButton = screen.getByRole('button', { name: 'Verify & Get Data' });
+    // Now in real-payment mode: button is "Verify & Get Data" and disabled (no tx hash)
+    const verifyButton = await waitFor(() =>
+      screen.getByRole('button', { name: 'Verify & Get Data' }),
+    );
     expect(verifyButton).toHaveProperty('disabled', true);
 
     fireEvent.change(screen.getByPlaceholderText('Paste your Stellar transaction hash...'), {
