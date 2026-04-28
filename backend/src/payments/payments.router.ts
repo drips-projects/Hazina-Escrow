@@ -13,6 +13,7 @@ import { notifySeller } from "../webhooks/webhook.service";
 import { getEscrow, releaseEscrow, refundEscrow, usdcToStroops } from "../lib/contract.client";
 import { sanitizeUserText } from "../common/sanitize";
 import { transactionEventEmitter } from "../websocket/transaction-events";
+import { requireAdminKey } from "../common/auth.middleware";
 
 export const paymentsRouter = Router();
 

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockCreate = vi.fn();
 
@@ -42,8 +42,20 @@ describe('parseClaudeSummaryResponse', () => {
 });
 
 describe('generateDataSummary', () => {
+  const originalAnthropicModel = process.env.ANTHROPIC_MODEL;
+
   beforeEach(() => {
     mockCreate.mockReset();
+    delete process.env.ANTHROPIC_MODEL;
+  });
+
+  afterEach(() => {
+    if (originalAnthropicModel === undefined) {
+      delete process.env.ANTHROPIC_MODEL;
+      return;
+    }
+
+    process.env.ANTHROPIC_MODEL = originalAnthropicModel;
   });
 
   it('parses fenced output returned by Claude', async () => {
@@ -59,5 +71,21 @@ describe('generateDataSummary', () => {
     const result = await generateDataSummary({ rows: [1, 2, 3] }, 'What changed?');
     expect(result.summary).toBe('Summary line one.');
     expect(result.answer).toBe('A concise answer.');
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'claude-3-5-haiku-20241022' }),
+    );
+  });
+
+  it('uses ANTHROPIC_MODEL when configured', async () => {
+    process.env.ANTHROPIC_MODEL = 'claude-custom-summary-model';
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'Summary only.' }],
+    });
+
+    await generateDataSummary({ rows: [1] });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'claude-custom-summary-model' }),
+    );
   });
 });

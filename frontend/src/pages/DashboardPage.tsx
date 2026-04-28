@@ -164,19 +164,23 @@ export default function DashboardPage() {
   useEffect(() => {
     setLoading(true);
     setFetchError(null);
-    Promise.all([api.getDatasets()])
-      .then(([ds]) => {
+    Promise.all([api.getDatasets(), api.getTransactions()])
+      .then(([ds, txs]) => {
         setDatasets(ds);
-        return Promise.all(ds.map((d) => api.getTransactions(d.id)));
+        setTransactions(txs);
+    api
+      .getDatasets()
+      .then((ds) => {
+        setDatasets(ds.data);
+        return Promise.all(ds.data.map((d) => api.getTransactions(d.id)));
       })
-      .then((txArrays) => setTransactions(txArrays.flat()))
       .catch((err) => {
         setFetchError(
-          err instanceof Error ? err.message : "Failed to load dashboard data.",
+          err instanceof Error ? err.message : t("dashboard.loadError"),
         );
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   const totalEarned = datasets.reduce((s, d) => s + d.totalEarned, 0);
   const totalQueries = datasets.reduce((s, d) => s + d.queriesServed, 0);
@@ -250,9 +254,9 @@ export default function DashboardPage() {
   if (fetchError) {
     return (
       <div className="min-h-screen pt-28 flex items-center justify-center px-4">
-        <div className="glass-card max-w-md w-full p-8 text-center">
+          <div className="glass-card max-w-md w-full p-8 text-center">
           <p className="font-display text-xl font-semibold text-foreground mb-3">
-            {t("dashboard.loadError", "Could not load dashboard")}
+            {t("dashboard.loadError")}
           </p>
           <p className="text-sm text-foreground-muted font-body mb-6">{fetchError}</p>
           <button
@@ -260,7 +264,7 @@ export default function DashboardPage() {
             onClick={() => window.location.reload()}
             className="btn-gold px-6 py-2.5 text-sm"
           >
-            {t("common.actions.retry", "Retry")}
+            {t("common.actions.retry")}
           </button>
         </div>
       </div>
@@ -360,7 +364,7 @@ export default function DashboardPage() {
         {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Earnings area chart */}
-          <div className="lg:col-span-2 glass-card p-6">
+          <div className="lg:col-span-2 glass-card p-6 min-w-0">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="font-display font-semibold text-foreground">
@@ -372,11 +376,12 @@ export default function DashboardPage() {
               </div>
               <TrendingUp className="w-5 h-5 text-gold" />
             </div>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart
-                data={chartData}
-                margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
-              >
+            <div className="h-[220px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={chartData}
+                  margin={{ top: 5, right: 5, left: 0, bottom: 0 }}
+                >
                 <defs>
                   <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#C9A84C" stopOpacity={0.3} />
@@ -420,7 +425,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Queries bar chart */}
-          <div className="glass-card p-6">
+          <div className="glass-card p-6 min-w-0">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="font-display font-semibold text-foreground">
@@ -432,11 +437,12 @@ export default function DashboardPage() {
               </div>
               <Activity className="w-5 h-5 text-gold" />
             </div>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart
-                data={chartData}
-                margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
-              >
+            <div className="h-[220px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 5, right: 5, left: 0, bottom: 0 }}
+                >
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="rgba(255,255,255,0.04)"

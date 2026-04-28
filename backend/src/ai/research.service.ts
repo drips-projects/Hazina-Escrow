@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { getAnthropicResearchModel } from './anthropic.config';
 
 export interface ResearchInput {
   userQuery: string;
@@ -25,6 +26,33 @@ export interface ResearchReport {
   alternatives: string[];
   warnings: string[];
   rawAnalysis: string;
+}
+
+/**
+ * Safely parse JSON from Claude response, handling markdown fences and prose.
+ * Returns null if parsing fails after all attempts.
+ */
+function tryParseJson(raw: string): ResearchReport | null {
+  // Attempt #1: Remove markdown fences and parse
+  const cleaned = raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+
+  try {
+    return JSON.parse(cleaned) as ResearchReport;
+  } catch {
+    // Attempt #2: Extract first valid-looking JSON object
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]) as ResearchReport;
+      } catch {
+        // Both attempts failed
+        return null;
+      }
+    }
+
+    // No JSON object found
+    return null;
+  }
 }
 
 export async function synthesizeResearch(input: ResearchInput): Promise<ResearchReport> {
@@ -75,8 +103,9 @@ Respond ONLY with valid JSON in this exact shape (no markdown fences):
   "rawAnalysis": "Concise paragraph synthesising all four data sources"
 }`;
 
+  // First attempt
   const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: getAnthropicResearchModel(),
     max_tokens: 2048,
     messages: [{ role: 'user', content: prompt }],
   });
@@ -86,15 +115,39 @@ Respond ONLY with valid JSON in this exact shape (no markdown fences):
     .map((b) => (b as { type: 'text'; text: string }).text)
     .join('');
 
-  // Strip any accidental markdown fences
-  const cleaned = raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-
-  try {
-    const parsed = JSON.parse(cleaned) as ResearchReport;
+  // Try to parse the initial response
+  let parsed = tryParseJson(raw);
+  if (parsed !== null) {
     return parsed;
-  } catch {
-    throw new Error(`AI returned invalid JSON. Raw response: ${cleaned.slice(0, 200)}`);
   }
+
+  // Retry with stricter prompt
+  console.warn('[synthesizeResearch] Initial parse failed, retrying with stricter prompt');
+
+  const stricterPrompt = `${prompt}
+
+CRITICAL: Return ONLY valid JSON. Do not include explanations, markdown, code fences, or any extra text. Just the JSON object.`;
+
+  const retryResponse = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 2048,
+    messages: [{ role: 'user', content: stricterPrompt }],
+  });
+
+  const retryRaw = retryResponse.content
+    .filter((b) => b.type === 'text')
+    .map((b) => (b as { type: 'text'; text: string }).text)
+    .join('');
+
+  parsed = tryParseJson(retryRaw);
+  if (parsed !== null) {
+    return parsed;
+  }
+
+  // Both attempts failed
+  throw new Error(
+    `Failed to parse Claude JSON response after retry. Raw output: ${raw.slice(0, 500)}`
+  );
 }
 
 /**

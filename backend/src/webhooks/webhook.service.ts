@@ -116,7 +116,7 @@ export async function notifySeller(
   event: WebhookEvent,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const webhooks = getWebhooksForSeller(sellerWallet);
+  const webhooks = await getWebhooksForSeller(sellerWallet);
   const matching = webhooks.filter(
     w => w.active && (w.events.length === 0 || w.events.includes(event)),
   );

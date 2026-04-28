@@ -22,6 +22,7 @@ export const en = {
       done: "Done",
       downloadJson: "Download JSON",
       tryAgain: "Try Again",
+      retry: "Retry",
       openStellarLab: "Open Stellar Laboratory",
       viewMarketplace: "View Marketplace",
       listAnother: "List Another",
@@ -246,12 +247,13 @@ export const en = {
       quickPricePresets: "Quick price presets:",
       sellerWallet: "Your Stellar Wallet Address",
       sellerWalletPlaceholder: "G... (56-character Stellar public key)",
-      sellerWalletError: "Stellar addresses are 56 characters starting with G",
+      sellerWalletError:
+        "Enter a valid Stellar public key (starts with G, uses A-Z or 2-7, and is exactly 56 characters)",
       sellerWalletHelp:
         "95% of each query payment is sent here automatically",
       datasetJson: "Dataset (JSON)",
-      uploadFileTitle: "Upload JSON or CSV file",
-      uploadFileSubtitle: "Max 10MB",
+      uploadFileTitle: "Upload JSON file",
+      uploadFileSubtitle: "JSON only, max 10MB",
       dataPlaceholder:
         "Paste your JSON data here...\n\nExample:\n{\n  \"wallets\": [\n    { \"address\": \"0x...\", \"balance\": 42847 }\n  ]\n}",
       submit: "Publish to Marketplace",
@@ -294,6 +296,7 @@ export const en = {
     eyebrow: "Seller Hub",
     title: "Dashboard",
     subtitle: "Your real-time earnings and dataset performance.",
+    loadError: "Could not load dashboard",
     allSellers: "All Sellers",
     stats: {
       totalEarned: "Total USDC Earned",
@@ -368,7 +371,7 @@ export const en = {
       bearish: "Bearish",
     },
   },
-  queryModal: {
+	  queryModal: {
     verifyingStages: [
       "Checking Stellar blockchain…",
       "Simulating payment on Stellar testnet…",
@@ -376,10 +379,11 @@ export const en = {
       "Generating AI analysis…",
       "Preparing your results…",
     ],
-    details: {
-      pricePerQuery: "Price per Query",
-      queriesSold: "Queries Sold",
-      seller: "Seller",
+	    details: {
+	      title: "Dataset details",
+	      pricePerQuery: "Price per Query",
+	      queriesSold: "Queries Sold",
+	      seller: "Seller",
       network: "Network",
       askQuestion: "Ask Claude a question about this data",
       questionPlaceholder:

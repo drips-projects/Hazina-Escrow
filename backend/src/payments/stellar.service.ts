@@ -1,7 +1,8 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { getCircuitBreaker } from '../common/circuit-breaker';
+import { HORIZON_URL, USDC_ISSUER } from '../lib/stellar.config';
 
-const server = new StellarSdk.Horizon.Server('https://horizon-testnet.stellar.org');
+const server = new StellarSdk.Horizon.Server(HORIZON_URL);
 
 const stellarBreaker = getCircuitBreaker('stellar-horizon', {
   failureThreshold: 5,
@@ -42,12 +43,9 @@ export async function verifyStellarPayment(params: VerifyParams): Promise<Verify
     }
 
     // Find USDC payment — must match both asset code and issuer to prevent XLM/fake-USDC substitution
-    const expectedIssuer = process.env.USDC_ISSUER;
     const usdcOps = paymentOps.filter(op => {
       const payOp = op as StellarSdk.Horizon.ServerApi.PaymentOperationRecord;
-      return (
-        payOp.asset_code === 'USDC' && (!expectedIssuer || payOp.asset_issuer === expectedIssuer)
-      );
+      return payOp.asset_code === 'USDC' && payOp.asset_issuer === USDC_ISSUER;
     });
 
     if (usdcOps.length === 0) {

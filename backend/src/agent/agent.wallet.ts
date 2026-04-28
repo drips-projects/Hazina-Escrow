@@ -1,11 +1,8 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
+import { HORIZON_URL, SOROBAN_RPC_URL, USDC_ISSUER, getNetworkPassphrase } from '../lib/stellar.config';
 
-const server = new StellarSdk.Horizon.Server('https://horizon-testnet.stellar.org');
-const SOROBAN_RPC_URL = 'https://soroban-testnet.stellar.org';
+const server = new StellarSdk.Horizon.Server(HORIZON_URL);
 const CONTRACT_CALL_TIMEOUT_MS = 30_000;
-
-// Testnet USDC issuer (Circle testnet)
-const USDC_ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
 
 export interface SendPaymentParams {
   destinationAddress: string;
@@ -37,7 +34,7 @@ export async function sendUsdcPayment(params: SendPaymentParams): Promise<SendPa
 
   const txBuilder = new StellarSdk.TransactionBuilder(account, {
     fee: StellarSdk.BASE_FEE,
-    networkPassphrase: StellarSdk.Networks.TESTNET,
+    networkPassphrase: getNetworkPassphrase(),
   }).addOperation(
     StellarSdk.Operation.payment({
       destination: params.destinationAddress,
@@ -82,7 +79,7 @@ export async function callContract(
   const account = await rpc.getAccount(keypair.publicKey());
   const tx = new StellarSdk.TransactionBuilder(account, {
     fee: StellarSdk.BASE_FEE,
-    networkPassphrase: StellarSdk.Networks.TESTNET,
+    networkPassphrase: getNetworkPassphrase(),
   })
     .addOperation(contract.call(method, ...args))
     .setTimeout(30)

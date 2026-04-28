@@ -1,7 +1,7 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { callContract } from '../agent/agent.wallet';
+import { SOROBAN_RPC_URL } from './stellar.config';
 
-const SOROBAN_RPC_URL = 'https://soroban-testnet.stellar.org';
 const DEFAULT_CONTRACT_ID = 'CCPG2CSL6WDUA2IFUDHFN5SCJQUTFCLFKMTARALQ5RWGB2RGG345HEEH';
 
 function contractId(): string {

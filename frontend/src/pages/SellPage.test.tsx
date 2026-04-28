@@ -12,6 +12,8 @@ vi.mock('../lib/api', () => ({
 }));
 
 const validWallet = `G${'A'.repeat(55)}`;
+const walletError =
+  'Enter a valid Stellar public key (starts with G, uses A-Z or 2-7, and is exactly 56 characters)';
 
 function renderSellPage() {
   return render(
@@ -21,6 +23,12 @@ function renderSellPage() {
       </MemoryRouter>
     </I18nProvider>,
   );
+}
+
+function getFileInput(container: HTMLElement) {
+  const fileInput = container.querySelector('input[type="file"]');
+  expect(fileInput).toBeTruthy();
+  return fileInput as HTMLInputElement;
 }
 
 function fillRequiredFields() {
@@ -48,15 +56,28 @@ describe('SellPage', () => {
     vi.clearAllMocks();
   });
 
-  it('shows wallet validation error for short addresses', () => {
+  it.each([
+    ['short addresses', 'G123'],
+    ['56-character addresses with the wrong prefix', `E${'A'.repeat(55)}`],
+    ['addresses longer than 56 characters', `${validWallet}A`],
+    ['addresses with invalid characters', `G${'a'.repeat(55)}`],
+  ])('shows wallet validation error for %s', (_label, wallet) => {
     renderSellPage();
     fireEvent.change(screen.getByPlaceholderText('G... (56-character Stellar public key)'), {
-      target: { value: 'G123' },
+      target: { value: wallet },
     });
 
-    expect(screen.getByText('Stellar addresses are 56 characters starting with G')).toBeTruthy();
+    expect(screen.getByText(walletError)).toBeTruthy();
     const submitButton = screen.getByRole('button', { name: 'Publish to Marketplace' });
     expect(submitButton).toHaveProperty('disabled', true);
+  });
+
+  it('only advertises JSON uploads', () => {
+    const { container } = renderSellPage();
+
+    expect(screen.getByText('Upload JSON file')).toBeTruthy();
+    expect(screen.getByText('JSON only, max 10MB')).toBeTruthy();
+    expect(getFileInput(container).accept).toBe('.json,application/json');
   });
 
   it('shows JSON validation error for malformed dataset payload', () => {
@@ -74,11 +95,12 @@ describe('SellPage', () => {
   });
 
   it('submits, shows loading state, then success state', async () => {
-    let resolveRequest: ((value: unknown) => void) | undefined;
+    type CreatedDataset = Awaited<ReturnType<typeof api.createDataset>>;
+    let resolveRequest: ((value: CreatedDataset) => void) | undefined;
     vi.mocked(api.createDataset).mockReturnValueOnce(
-      new Promise((resolve) => {
+      new Promise<CreatedDataset>((resolve) => {
         resolveRequest = resolve;
-      }) as Promise<never>,
+      }),
     );
 
     renderSellPage();
@@ -102,6 +124,13 @@ describe('SellPage', () => {
     resolveRequest?.({
       id: 'ds-1',
       name: 'Test Dataset',
+      description: 'A useful dataset description',
+      type: 'whale-wallets',
+      pricePerQuery: 0.05,
+      sellerWallet: validWallet,
+      queriesServed: 0,
+      totalEarned: 0,
+      createdAt: new Date().toISOString(),
     });
 
     await waitFor(() => {

@@ -75,7 +75,9 @@ export default function QueryModal({ dataset, onClose, onSuccess }: Props) {
       onSuccess({
         id: dataset.id,
         queriesServed: dataset.queriesServed + 1,
-        totalEarned: dataset.totalEarned + dataset.pricePerQuery * 0.95,
+        totalEarned: res.demo
+          ? dataset.totalEarned
+          : dataset.totalEarned + res.transaction.sellerReceived,
       });
     } catch (err: unknown) {
       clearInterval(verifyTimerRef.current!);
@@ -421,20 +423,28 @@ export default function QueryModal({ dataset, onClose, onSuccess }: Props) {
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `hazina-${dataset.id}.json`;
-                    a.click();
-                  }}
-                  className="btn-ghost flex-1 py-3 text-sm"
-                >
-                  {t("common.actions.downloadJson")}
-                </button>
+	              <div className="flex gap-3">
+	                <button
+	                  onClick={() => {
+	                    const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' });
+	                    const url = URL.createObjectURL(blob);
+	                    const a = document.createElement('a');
+
+	                    try {
+	                      a.href = url;
+	                      a.download = `hazina-${dataset.id}.json`;
+	                      document.body.appendChild(a);
+	                      a.click();
+	                    } finally {
+	                      a.remove();
+	                      // Let the download start before revoking the Object URL.
+	                      setTimeout(() => URL.revokeObjectURL(url), 0);
+	                    }
+	                  }}
+	                  className="btn-ghost flex-1 py-3 text-sm"
+	                >
+	                  {t("common.actions.downloadJson")}
+	                </button>
                 <button onClick={onClose} className="btn-gold flex-1 py-3 text-sm">
                   {t("common.actions.done")}
                 </button>

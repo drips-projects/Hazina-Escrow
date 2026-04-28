@@ -22,6 +22,7 @@ export const es: EnglishMessages = {
       done: "Listo",
       downloadJson: "Descargar JSON",
       tryAgain: "Intentar de nuevo",
+      retry: "Reintentar",
       openStellarLab: "Abrir Stellar Laboratory",
       viewMarketplace: "Ver marketplace",
       listAnother: "Publicar otro",
@@ -36,6 +37,8 @@ export const es: EnglishMessages = {
       listNewDataset: "Publicar nuevo dataset",
       listFirstDataset: "Publica tu primer dataset",
       resetSearch: "Restablecer búsqueda",
+      copyAddress: "Copiar dirección",
+      copyMemo: "Copiar memo",
     },
     labels: {
       price: "Precio",
@@ -197,11 +200,13 @@ export const es: EnglishMessages = {
     subtitle:
       "Inteligencia on-chain premium, con precio por consulta. Paga solo por lo que necesitas.",
     searchPlaceholder: "Buscar datasets...",
+    filterBy: "Filtrar por {type}",
     pagination: {
       previous: "Anterior",
       next: "Siguiente",
       page: "Página {current} de {total}",
       showing: "Mostrando {start}-{end} de {total}",
+      goToPage: "Ir a la página {page}",
     },
     sorts: {
       popular: "Más popular",
@@ -243,12 +248,13 @@ export const es: EnglishMessages = {
       quickPricePresets: "Precios rápidos:",
       sellerWallet: "Tu dirección Stellar",
       sellerWalletPlaceholder: "G... (clave pública Stellar de 56 caracteres)",
-      sellerWalletError: "Las direcciones Stellar tienen 56 caracteres y empiezan con G",
+      sellerWalletError:
+        "Introduce una clave publica de Stellar valida (empieza con G, usa A-Z o 2-7 y tiene exactamente 56 caracteres)",
       sellerWalletHelp:
         "El 95 % de cada pago por consulta se envía aquí automáticamente",
       datasetJson: "Dataset (JSON)",
-      uploadFileTitle: "Subir archivo JSON o CSV",
-      uploadFileSubtitle: "Máx. 10 MB",
+      uploadFileTitle: "Subir archivo JSON",
+      uploadFileSubtitle: "Solo JSON, máx. 10 MB",
       dataPlaceholder:
         "Pega aquí tus datos JSON...\n\nEjemplo:\n{\n  \"wallets\": [\n    { \"address\": \"0x...\", \"balance\": 42847 }\n  ]\n}",
       submit: "Publicar en el marketplace",
@@ -291,6 +297,7 @@ export const es: EnglishMessages = {
     eyebrow: "Centro del vendedor",
     title: "Panel",
     subtitle: "Tus ganancias en tiempo real y el rendimiento de tus datasets.",
+    loadError: "No se pudo cargar el panel",
     allSellers: "Todos los vendedores",
     stats: {
       totalEarned: "USDC totales ganados",
@@ -374,6 +381,7 @@ export const es: EnglishMessages = {
       "Preparando tus resultados…",
     ],
     details: {
+      title: "Detalles del dataset",
       pricePerQuery: "Precio por consulta",
       queriesSold: "Consultas vendidas",
       seller: "Vendedor",

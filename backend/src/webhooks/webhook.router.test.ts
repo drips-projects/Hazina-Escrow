@@ -1,6 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 import express, { Express } from "express";
+
+vi.mock("./webhook.service", () => ({
+  notifySeller: vi.fn(() => Promise.resolve()),
+  dispatchWebhook: vi.fn(() => Promise.resolve()),
+}));
+
 import { webhooksRouter } from "./webhook.router";
 import { readStore, writeStore, Store } from "../common/storage";
 import fs from "fs";
@@ -12,14 +18,14 @@ const BACKUP_PATH = path.join(__dirname, "../../../data/datasets.json.bak");
 describe("Webhook Router", () => {
   let app: Express;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Backup current store
     if (fs.existsSync(DATA_PATH)) {
       fs.copyFileSync(DATA_PATH, BACKUP_PATH);
     }
     // Seed clean store
     const clean: Store = { datasets: [], transactions: [], webhooks: [] };
-    writeStore(clean);
+    await writeStore(clean);
 
     app = express();
     app.use(express.json());

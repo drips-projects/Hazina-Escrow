@@ -48,7 +48,7 @@ export class BackupService {
       const backupPath = path.join(this.config.backupDir, filename);
 
       // Read current store
-      const store = readStore();
+      const store = await readStore();
 
       // Write backup
       const backupData = {

@@ -49,7 +49,7 @@ export async function runResearchAgent(
   humanTxHash: string
 ): Promise<AgentJob> {
   // 1. Verify human's 1 USDC payment to escrow wallet
-  if (txHashUsed(humanTxHash)) {
+  if (await txHashUsed(humanTxHash)) {
     throw new Error('Transaction hash already used');
   }
 
@@ -88,7 +88,7 @@ async function _executeResearch(
   const riskTolerance = parseRiskTolerance(query);
   const agentWallet = getAgentPublicKey();
 
-  const allDatasets = getAllDatasets();
+  const allDatasets = await getAllDatasets();
 
   // 2. Find the best dataset for each seller role
   const purchases: PurchaseRecord[] = [];
@@ -138,17 +138,20 @@ async function _executeResearch(
     totalSpent += dataset.pricePerQuery;
 
     // Update dataset stats
-    updateDataset(dataset.id, {
+    await updateDataset(dataset.id, {
       queriesServed: dataset.queriesServed + 1,
       totalEarned: parseFloat((dataset.totalEarned + dataset.pricePerQuery * 0.95).toFixed(4)),
     });
 
     // Log individual transaction
-    addTransaction({
+    await addTransaction({
       id: `tx-agent-${uuidv4()}`,
       datasetId: dataset.id,
       txHash,
       amount: dataset.pricePerQuery,
+      sellerPaid: true,
+      sellerAmount: parseFloat((dataset.pricePerQuery * 0.95).toFixed(7)),
+      sellerTxHash: txHash,
       buyerQuery: `[Agent Job ${jobId}] ${query}`,
       timestamp: new Date().toISOString(),
     });
@@ -165,7 +168,7 @@ async function _executeResearch(
     }).catch(() => {});
 
     // Read the actual data
-    const fresh = getDataset(dataset.id);
+    const fresh = await getDataset(dataset.id);
     collectedData[seller.role] = fresh?.data ?? {};
   }
 
@@ -189,11 +192,12 @@ async function _executeResearch(
   });
 
   // 4. Log the agent job as a transaction for audit trail
-  addTransaction({
+  await addTransaction({
     id: `tx-agent-job-${jobId}`,
     datasetId: 'agent-job',
     txHash: humanTxHash,
     amount: AGENT_FEE_USDC,
+    sellerPaid: true,
     buyerQuery: query,
     aiSummary: report.rawAnalysis,
     timestamp: new Date().toISOString(),

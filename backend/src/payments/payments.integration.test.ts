@@ -71,14 +71,15 @@ const describeSocket = process.env.ALLOW_SOCKET_TESTS === '1' ? describe : descr
 describeSocket('payments and agent integration routes', () => {
   let app: Express;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     if (fs.existsSync(DATA_PATH)) {
       fs.copyFileSync(DATA_PATH, BACKUP_PATH);
     }
-    writeStore(BASE_STORE);
+    await writeStore(BASE_STORE);
 
     app = makeApp();
     process.env.ESCROW_WALLET = ESCROW_WALLET;
+    process.env.ADMIN_API_KEY = 'admin-test-key';
 
     vi.mocked(verifyStellarPayment).mockResolvedValue({
       valid: true,
@@ -127,6 +128,7 @@ describeSocket('payments and agent integration routes', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.ESCROW_WALLET;
+    delete process.env.ADMIN_API_KEY;
 
     if (fs.existsSync(BACKUP_PATH)) {
       fs.copyFileSync(BACKUP_PATH, DATA_PATH);
@@ -158,6 +160,8 @@ describeSocket('payments and agent integration routes', () => {
     expect(response.body.ai.summary).toBe('Executive summary');
     expect(response.body.ai.answer).toBe('Buyer answer');
     expect(response.body.transaction.sellerReceived).toBe(0.95);
+    expect(response.body.transaction.sellerPaid).toBe(true);
+    expect(response.body.warning).toBeNull();
 
     expect(verifyStellarPayment).toHaveBeenCalledWith({
       txHash: 'tx-happy-path',
@@ -168,7 +172,7 @@ describeSocket('payments and agent integration routes', () => {
   });
 
   it('POST /api/verify/:id rejects replayed transaction hash', async () => {
-    writeStore({
+    await writeStore({
       ...BASE_STORE,
       transactions: [
         {
@@ -176,6 +180,7 @@ describeSocket('payments and agent integration routes', () => {
           datasetId: 'ds-payment-1',
           txHash: 'tx-replayed',
           amount: 1,
+          sellerPaid: true,
           timestamp: new Date().toISOString(),
         },
       ],
@@ -217,6 +222,66 @@ describeSocket('payments and agent integration routes', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error).toContain('expired');
+  });
+
+  it('POST /api/verify/:id records failed seller payouts for reconciliation', async () => {
+    vi.mocked(sendUsdcPayment).mockRejectedValueOnce(new Error('Agent wallet balance too low'));
+
+    const response = await request(app).post('/api/verify/ds-payment-1').send({
+      txHash: 'tx-payout-failed',
+      buyerQuestion: 'What changed?',
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.warning).toBe('SELLER_PAYOUT_PENDING');
+    expect(response.body.transaction.sellerPaid).toBe(false);
+    expect(response.body.transaction.sellerReceived).toBe(0);
+    expect(response.body.transaction.sellerTxHash).toBeNull();
+
+    const store = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8')) as Store;
+    expect(store.datasets[0]?.totalEarned).toBe(0);
+    expect(store.transactions).toEqual([
+      expect.objectContaining({
+        txHash: 'tx-payout-failed',
+        sellerPaid: false,
+        sellerAmount: 0.95,
+        sellerPayoutError: 'Agent wallet balance too low',
+      }),
+    ]);
+  });
+
+  it('GET /api/admin/unpaid-sellers returns failed seller payouts', async () => {
+    writeStore({
+      ...BASE_STORE,
+      transactions: [
+        {
+          id: 'tx-unpaid-1',
+          datasetId: 'ds-payment-1',
+          txHash: 'tx-unpaid-1',
+          amount: 1,
+          sellerPaid: false,
+          sellerAmount: 0.95,
+          sellerPayoutError: 'network timeout',
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .get('/api/admin/unpaid-sellers')
+      .set('Authorization', 'Bearer admin-test-key');
+
+    expect(response.status).toBe(200);
+    expect(response.body.total).toBe(1);
+    expect(response.body.unpaidTransactions).toEqual([
+      expect.objectContaining({
+        txHash: 'tx-unpaid-1',
+        sellerPaid: false,
+        sellerPayoutError: 'network timeout',
+        datasetName: 'USDC Yield Dataset',
+        sellerWallet: SELLER_WALLET,
+      }),
+    ]);
   });
 
   it('POST /api/agent/research/demo returns a valid report shape', async () => {

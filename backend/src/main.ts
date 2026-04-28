@@ -23,6 +23,7 @@ import { BackupScheduler } from './common/backup.scheduler';
 import { backupRouter, setBackupScheduler } from './common/backup.router';
 import { createCompressionMiddleware } from './common/compression';
 import { initializeWebSocketServer } from './websocket/ws-server';
+import { HORIZON_URL } from './lib/stellar.config';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -119,11 +120,8 @@ const swaggerOptions = {
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-
 // Health check with service monitoring
 const HEALTH_TIMEOUT_MS = 3000;
-const HORIZON_URL = 'https://horizon-testnet.stellar.org/';
 
 type CheckResult = 'ok' | 'error';
 
@@ -136,7 +134,7 @@ async function withHealthTimeout(fn: () => Promise<CheckResult>): Promise<CheckR
 
 async function checkStorage(): Promise<CheckResult> {
   try {
-    readStore();
+    await readStore();
     return 'ok';
   } catch {
     return 'error';

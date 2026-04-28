@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { getAnthropicModel } from '../ai/anthropic.config';
 import { getAllCircuitBreakerStats } from './circuit-breaker';
 
 interface HealthStatus {
@@ -55,7 +56,7 @@ async function checkAnthropicService(): Promise<{
     // Make a lightweight API call to verify connectivity
     // Using Messages API with minimal tokens to check service availability
     await client.messages.countTokens({
-      model: 'claude-haiku-4-5-20251001',
+      model: getAnthropicModel(),
       messages: [{ role: 'user', content: 'health check' }],
     });
 

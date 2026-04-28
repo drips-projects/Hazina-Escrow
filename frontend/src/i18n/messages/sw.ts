@@ -22,6 +22,7 @@ export const sw: EnglishMessages = {
       done: "Imekamilika",
       downloadJson: "Pakua JSON",
       tryAgain: "Jaribu tena",
+      retry: "Jaribu tena",
       openStellarLab: "Fungua Stellar Laboratory",
       viewMarketplace: "Tazama soko",
       listAnother: "Orodhesha nyingine",
@@ -36,6 +37,8 @@ export const sw: EnglishMessages = {
       listNewDataset: "Orodhesha dataset mpya",
       listFirstDataset: "Orodhesha dataset yako ya kwanza",
       resetSearch: "Weka upya utafutaji",
+      copyAddress: "Nakili anwani",
+      copyMemo: "Nakili memo",
     },
     labels: {
       price: "Bei",
@@ -197,11 +200,13 @@ export const sw: EnglishMessages = {
     subtitle:
       "Maarifa bora ya on-chain, yenye bei kwa kila swali. Lipa tu kwa unachohitaji.",
     searchPlaceholder: "Tafuta dataset...",
+    filterBy: "Chuja kwa {type}",
     pagination: {
       previous: "Iliyotangulia",
       next: "Ifuatayo",
       page: "Ukurasa wa {current} kati ya {total}",
       showing: "Inaonyesha {start}-{end} kati ya {total}",
+      goToPage: "Nenda kwenye ukurasa {page}",
     },
     sorts: {
       popular: "Maarufu zaidi",
@@ -242,12 +247,13 @@ export const sw: EnglishMessages = {
       quickPricePresets: "Bei za haraka:",
       sellerWallet: "Anwani yako ya Stellar Wallet",
       sellerWalletPlaceholder: "G... (ufunguo wa umma wa Stellar wa herufi 56)",
-      sellerWalletError: "Anwani za Stellar zina herufi 56 na huanza na G",
+      sellerWalletError:
+        "Weka ufunguo halali wa umma wa Stellar (unaanza na G, unatumia A-Z au 2-7, na una herufi 56 kamili)",
       sellerWalletHelp:
         "95% ya kila malipo ya swali hutumwa hapa kiotomatiki",
       datasetJson: "Dataset (JSON)",
-      uploadFileTitle: "Pakia faili ya JSON au CSV",
-      uploadFileSubtitle: "Kiwango cha juu 10MB",
+      uploadFileTitle: "Pakia faili ya JSON",
+      uploadFileSubtitle: "JSON pekee, kiwango cha juu 10MB",
       dataPlaceholder:
         "Bandika data yako ya JSON hapa...\n\nMfano:\n{\n  \"wallets\": [\n    { \"address\": \"0x...\", \"balance\": 42847 }\n  ]\n}",
       submit: "Chapisha sokoni",
@@ -290,6 +296,7 @@ export const sw: EnglishMessages = {
     eyebrow: "Kituo cha wauzaji",
     title: "Dashibodi",
     subtitle: "Mapato yako ya wakati halisi na utendaji wa dataset zako.",
+    loadError: "Imeshindikana kupakia dashibodi",
     allSellers: "Wauzaji wote",
     stats: {
       totalEarned: "Jumla ya USDC iliyopatikana",
@@ -373,6 +380,7 @@ export const sw: EnglishMessages = {
       "Inaandaa matokeo yako…",
     ],
     details: {
+      title: "Maelezo ya dataset",
       pricePerQuery: "Bei kwa kila swali",
       queriesSold: "Maswali yaliyouzwa",
       seller: "Muuzaji",

@@ -22,6 +22,7 @@ export const fr: EnglishMessages = {
       done: "Terminé",
       downloadJson: "Télécharger le JSON",
       tryAgain: "Réessayer",
+      retry: "Réessayer",
       openStellarLab: "Ouvrir Stellar Laboratory",
       viewMarketplace: "Voir la marketplace",
       listAnother: "Lister un autre",
@@ -36,6 +37,8 @@ export const fr: EnglishMessages = {
       listNewDataset: "Lister un nouveau dataset",
       listFirstDataset: "Lister votre premier dataset",
       resetSearch: "Réinitialiser la recherche",
+      copyAddress: "Copier l'adresse",
+      copyMemo: "Copier le mémo",
     },
     labels: {
       price: "Prix",
@@ -197,11 +200,13 @@ export const fr: EnglishMessages = {
     subtitle:
       "Une intelligence on-chain premium, tarifée par requête. Ne payez que ce dont vous avez besoin.",
     searchPlaceholder: "Rechercher des datasets...",
+    filterBy: "Filtrer par {type}",
     pagination: {
       previous: "Précédent",
       next: "Suivant",
       page: "Page {current} sur {total}",
       showing: "Affichage de {start} à {end} sur {total}",
+      goToPage: "Aller à la page {page}",
     },
     sorts: {
       popular: "Les plus populaires",
@@ -243,12 +248,13 @@ export const fr: EnglishMessages = {
       quickPricePresets: "Tarifs rapides :",
       sellerWallet: "Votre adresse Stellar",
       sellerWalletPlaceholder: "G... (clé publique Stellar de 56 caractères)",
-      sellerWalletError: "Les adresses Stellar comportent 56 caractères et commencent par G",
+      sellerWalletError:
+        "Saisissez une cle publique Stellar valide (commence par G, utilise A-Z ou 2-7 et comporte exactement 56 caracteres)",
       sellerWalletHelp:
         "95 % de chaque paiement de requête est envoyé ici automatiquement",
       datasetJson: "Dataset (JSON)",
-      uploadFileTitle: "Téléverser un fichier JSON ou CSV",
-      uploadFileSubtitle: "Max 10 Mo",
+      uploadFileTitle: "Téléverser un fichier JSON",
+      uploadFileSubtitle: "JSON uniquement, max 10 Mo",
       dataPlaceholder:
         "Collez vos données JSON ici...\n\nExemple :\n{\n  \"wallets\": [\n    { \"address\": \"0x...\", \"balance\": 42847 }\n  ]\n}",
       submit: "Publier sur la marketplace",
@@ -291,6 +297,7 @@ export const fr: EnglishMessages = {
     eyebrow: "Espace vendeur",
     title: "Tableau de bord",
     subtitle: "Vos revenus en temps réel et la performance de vos datasets.",
+    loadError: "Impossible de charger le tableau de bord",
     allSellers: "Tous les vendeurs",
     stats: {
       totalEarned: "USDC totaux gagnés",
@@ -374,6 +381,7 @@ export const fr: EnglishMessages = {
       "Préparation de vos résultats…",
     ],
     details: {
+      title: "Détails du dataset",
       pricePerQuery: "Prix par requête",
       queriesSold: "Requêtes vendues",
       seller: "Vendeur",

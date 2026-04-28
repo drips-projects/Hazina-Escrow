@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { sanitizeUserText } from '../common/sanitize';
 import { getCircuitBreaker } from '../common/circuit-breaker';
+import { getAnthropicModel } from './anthropic.config';
 
 const claudeBreaker = getCircuitBreaker('anthropic-claude', {
   failureThreshold: 3,
@@ -79,7 +80,7 @@ ${JSON.stringify(data, null, 2)}`;
 
   const response = await claudeBreaker.execute(() =>
     client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: getAnthropicModel(),
       max_tokens: 800,
       system: systemPrompt,
       messages: [{ role: 'user', content: prompt }],
