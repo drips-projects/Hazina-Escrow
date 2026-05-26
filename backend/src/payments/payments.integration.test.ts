@@ -5,11 +5,8 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Store, writeStore } from '../common/storage';
 
-vi.mock('../lib/contract.client', () => ({
-  getEscrow: vi.fn(),
-  releaseEscrow: vi.fn(),
-  refundEscrow: vi.fn(),
-  usdcToStroops: (usdc: number) => BigInt(Math.round(usdc * 10_000_000)),
+vi.mock('./stellar.service', () => ({
+  verifyStellarPayment: vi.fn(() => Promise.resolve({ valid: true, actualAmount: 1, memo: 'haz' })),
 }));
 
 vi.mock('../ai/claude.service', () => ({
@@ -27,10 +24,9 @@ vi.mock('../agent/agent.service', () => ({
 
 import { runResearchAgentDemo } from '../agent/agent.service';
 import { generateDataSummary } from '../ai/claude.service';
-import { getEscrow, releaseEscrow } from '../lib/contract.client';
+import { verifyStellarPayment } from './stellar.service';
 import { agentRouter } from '../agent/agent.router';
 import { paymentsRouter } from './payments.router';
-import type { EscrowRecord } from '../lib/contract.client';
 
 const DATA_PATH = path.join(__dirname, '../../../data/datasets.json');
 const BACKUP_PATH = path.join(__dirname, '../../../data/datasets.json.payments.integration.bak');
@@ -57,16 +53,6 @@ const BASE_STORE: Store = {
   webhooks: [],
 };
 
-const VALID_ESCROW: EscrowRecord = {
-  escrow_id: BigInt(42),
-  dataset_id: 'ds-payment-1',
-  buyer: 'GBUYER',
-  seller: SELLER_WALLET,
-  amount: BigInt(10_000_000),
-  released: false,
-  refunded: false,
-};
-
 function makeApp(): Express {
   const app = express();
   app.use(express.json());
@@ -86,8 +72,6 @@ describeSocket('payments and agent integration routes', () => {
     app = makeApp();
     process.env.ESCROW_WALLET = ESCROW_WALLET;
     process.env.ADMIN_API_KEY = 'admin-test-key';
-    vi.mocked(getEscrow).mockResolvedValue(VALID_ESCROW);
-    vi.mocked(releaseEscrow).mockResolvedValue('release-tx-hash');
     vi.mocked(generateDataSummary).mockResolvedValue({ summary: 'Executive summary', answer: 'Buyer answer' });
     vi.mocked(runResearchAgentDemo).mockResolvedValue({
       jobId: 'job-demo-1', query: 'best low risk strategy', budget: 500, riskTolerance: 'low',
@@ -121,45 +105,48 @@ describeSocket('payments and agent integration routes', () => {
   });
 
   it('POST /api/verify/:id handles happy path', async () => {
-    const r = await request(app).post('/api/verify/ds-payment-1').send({ escrowId: 42, buyerQuestion: 'What changed?' });
+    const r = await request(app).post('/api/verify/ds-payment-1').send({ txHash: 'tx-happy', buyerQuestion: 'What changed?' });
     expect(r.status).toBe(200);
     expect(r.body.success).toBe(true);
     expect(r.body.ai.summary).toBe('Executive summary');
-    expect(r.body.transaction.sellerPaid).toBe(true);
-    expect(r.body.transaction.releaseTxHash).toBe('release-tx-hash');
+    expect(r.body.transaction.status).toBe('completed');
+    expect(r.body.transaction.deliveryStatus).toBe('delivered');
     expect(r.body.warning).toBeNull();
-    expect(getEscrow).toHaveBeenCalledWith(42);
+    expect(verifyStellarPayment).toHaveBeenCalledWith({
+      txHash: 'tx-happy',
+      expectedAmount: 1,
+      destinationAddress: ESCROW_WALLET,
+    });
   });
 
   it('POST /api/verify/:id rejects replayed transaction hash', async () => {
-    await writeStore({ ...BASE_STORE, transactions: [{ id: 'tx-1', datasetId: 'ds-payment-1', txHash: 'escrow-42', amount: 1, sellerPaid: true, timestamp: new Date().toISOString() }] });
-    const r = await request(app).post('/api/verify/ds-payment-1').send({ escrowId: 42 });
+    await writeStore({ ...BASE_STORE, transactions: [{ id: 'tx-1', datasetId: 'ds-payment-1', txHash: 'tx-used', amount: 1, sellerPaid: true, timestamp: new Date().toISOString() }] });
+    const r = await request(app).post('/api/verify/ds-payment-1').send({ txHash: 'tx-used' });
     expect(r.status).toBe(400);
     expect(r.body.error).toContain('already processed');
-    expect(getEscrow).not.toHaveBeenCalled();
   });
 
   it('POST /api/verify/:id rejects wrong amount', async () => {
-    vi.mocked(getEscrow).mockResolvedValueOnce({ ...VALID_ESCROW, amount: BigInt(100) });
-    const r = await request(app).post('/api/verify/ds-payment-1').send({ escrowId: 42 });
+    vi.mocked(verifyStellarPayment).mockResolvedValueOnce({ valid: false, reason: 'Amount mismatch' });
+    const r = await request(app).post('/api/verify/ds-payment-1').send({ txHash: 'tx-wrong-amount' });
     expect(r.status).toBe(400);
-    expect(r.body.error).toContain('too low');
+    expect(r.body.error).toContain('Amount mismatch');
   });
 
   it('POST /api/verify/:id rejects expired transaction', async () => {
-    vi.mocked(getEscrow).mockRejectedValueOnce(new Error('Escrow not found on chain'));
-    const r = await request(app).post('/api/verify/ds-payment-1').send({ escrowId: 99 });
+    vi.mocked(verifyStellarPayment).mockResolvedValueOnce({ valid: false, reason: 'Transaction expired' });
+    const r = await request(app).post('/api/verify/ds-payment-1').send({ txHash: 'tx-expired' });
     expect(r.status).toBe(400);
-    expect(r.body.error).toContain('not found on contract');
+    expect(r.body.error).toContain('expired');
   });
 
   it('POST /api/verify/:id records failed seller payouts for reconciliation', async () => {
-    vi.mocked(releaseEscrow).mockRejectedValueOnce(new Error('Contract call failed'));
-    const r = await request(app).post('/api/verify/ds-payment-1').send({ escrowId: 42 });
-    expect(r.status).toBe(200);
-    expect(r.body.warning).toBe('SELLER_PAYOUT_PENDING');
-    expect(r.body.transaction.sellerPaid).toBe(false);
-    expect(r.body.transaction.releaseTxHash).toBeNull();
+    vi.mocked(generateDataSummary).mockRejectedValueOnce(new Error('Claude unavailable'));
+    const r = await request(app).post('/api/verify/ds-payment-1').send({ txHash: 'tx-pending' });
+    expect(r.status).toBe(202);
+    expect(r.body.pendingDelivery).toBe(true);
+    expect(r.body.warning).toBe('DELIVERY_PENDING_RETRY');
+    expect(r.body.transaction.deliveryStatus).toBe('failed');
   });
 
   it('GET /api/admin/unpaid-sellers returns failed seller payouts', async () => {

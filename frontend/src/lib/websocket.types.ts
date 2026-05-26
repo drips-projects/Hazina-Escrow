@@ -8,6 +8,8 @@ export type TransactionStatus =
   | 'pending'
   | 'verifying'
   | 'verified'
+  | 'delivery_pending'
+  | 'delivery_failed'
   | 'completed'
   | 'failed'
   | 'refunded';
@@ -22,6 +24,7 @@ export interface TransactionUpdateEvent {
     amount: string;
     buyerQuery?: string;
     aiSummary?: string;
+    deliveryStatus?: 'pending' | 'delivered' | 'failed';
     timestamp: string;
     error?: string;
   };

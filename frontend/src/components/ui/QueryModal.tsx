@@ -92,10 +92,11 @@ export default function QueryModal({ dataset, onClose, onSuccess }: Props) {
       clearVerifyTimer();
       setResult(res);
       setStep('result');
+      const delivered = res.transaction.deliveryStatus === 'delivered';
       onSuccess({
         id: dataset.id,
-        queriesServed: dataset.queriesServed + 1,
-        totalEarned: res.demo
+        queriesServed: delivered || res.demo ? dataset.queriesServed + 1 : dataset.queriesServed,
+        totalEarned: res.demo || !delivered
           ? dataset.totalEarned
           : dataset.totalEarned + res.transaction.sellerReceived,
       });
@@ -505,15 +506,44 @@ export default function QueryModal({ dataset, onClose, onSuccess }: Props) {
           {/* ── RESULT ── */}
           {step === 'result' && result && (
             <div>
-              <div className="flex items-center gap-2 mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
-                <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+              <div className={clsx(
+                'flex items-center gap-2 mb-4 p-3 rounded-xl border',
+                result.transaction.deliveryStatus === 'delivered'
+                  ? 'bg-emerald-500/10 border-emerald-500/25'
+                  : 'bg-amber-500/10 border-amber-500/25',
+              )}>
+                <ShieldCheck
+                  className={clsx(
+                    'w-5 h-5 flex-shrink-0',
+                    result.transaction.deliveryStatus === 'delivered'
+                      ? 'text-emerald-400'
+                      : 'text-amber-400',
+                  )}
+                />
                 <div>
-                  <p className="text-sm font-body font-semibold text-emerald-400">
-                    {t('queryModal.result.paymentVerified')}
+                  <p
+                    className={clsx(
+                      'text-sm font-body font-semibold',
+                      result.transaction.deliveryStatus === 'delivered'
+                        ? 'text-emerald-400'
+                        : 'text-amber-400',
+                    )}
+                  >
+                    {result.transaction.deliveryStatus === 'delivered'
+                      ? t('queryModal.result.paymentVerified')
+                      : 'Payment received, delivery pending'}
                   </p>
-                  <p className="text-xs text-emerald-400/70 font-body font-mono">
+                  <p
+                    className={clsx(
+                      'text-xs font-mono',
+                      result.transaction.deliveryStatus === 'delivered'
+                        ? 'text-emerald-400/70'
+                        : 'text-amber-400/70',
+                    )}
+                  >
                     {result.transaction.hash.slice(0, 40)}...
                   </p>
+                  {result.warning && <p className="text-xs text-amber-300/80 font-body mt-1">{result.warning}</p>}
                 </div>
               </div>
 
@@ -551,37 +581,49 @@ export default function QueryModal({ dataset, onClose, onSuccess }: Props) {
                     {t('queryModal.result.aiAnalysis')}
                   </p>
                 </div>
-                <p className="text-sm text-foreground font-body leading-relaxed">
-                  {result.ai.summary}
-                </p>
-                {result.ai.answer && (
-                  <div className="mt-3 pt-3 border-t border-gold/10">
-                    <p className="text-xs font-body font-semibold text-gold mb-1">
-                      {t('common.labels.answerToQuestion')}
-                    </p>
+                {result.ai?.summary ? (
+                  <>
                     <p className="text-sm text-foreground font-body leading-relaxed">
-                      {result.ai.answer}
+                      {result.ai.summary}
                     </p>
-                  </div>
+                    {result.ai.answer && (
+                      <div className="mt-3 pt-3 border-t border-gold/10">
+                        <p className="text-xs font-body font-semibold text-gold mb-1">
+                          {t('common.labels.answerToQuestion')}
+                        </p>
+                        <p className="text-sm text-foreground font-body leading-relaxed">
+                          {result.ai.answer}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-foreground-muted font-body leading-relaxed">
+                    The payment was verified, but delivery is still being retried. You can keep this
+                    window open or come back later to see the delivered data.
+                  </p>
                 )}
               </div>
 
               {/* Raw data preview */}
-              <div className="mb-5">
-                <p className="text-xs font-body font-semibold text-foreground-muted mb-2">
-                  {t('common.labels.rawDataPreview')}
-                </p>
-                <div className="bg-void rounded-xl p-4 max-h-48 overflow-auto border border-border/40">
-                  <pre className="text-xs font-mono text-foreground-muted leading-relaxed whitespace-pre-wrap">
-                    {JSON.stringify(result.data, null, 2).slice(0, 1200)}
-                    {JSON.stringify(result.data, null, 2).length > 1200 ? '\n...' : ''}
-                  </pre>
+              {result.data && (
+                <div className="mb-5">
+                  <p className="text-xs font-body font-semibold text-foreground-muted mb-2">
+                    {t('common.labels.rawDataPreview')}
+                  </p>
+                  <div className="bg-void rounded-xl p-4 max-h-48 overflow-auto border border-border/40">
+                    <pre className="text-xs font-mono text-foreground-muted leading-relaxed whitespace-pre-wrap">
+                      {JSON.stringify(result.data, null, 2).slice(0, 1200)}
+                      {JSON.stringify(result.data, null, 2).length > 1200 ? '\n...' : ''}
+                    </pre>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex gap-3">
                 <button
                   onClick={() => {
+                    if (!result.data) return;
                     const blob = new Blob([JSON.stringify(result.data, null, 2)], {
                       type: 'application/json',
                     });

@@ -5,7 +5,33 @@ The Soroban contract now supports:
 - A default platform fee plus dataset-specific fee overrides
 - Admin-managed whitelist and blacklist controls for buyer and seller addresses
 - An admin-controlled pause/unpause circuit breaker for emergencies
+- An admin-only upgrade path for swapping the current WASM executable
 - Invariant-focused verification tests that can be run independently
+
+## Input validation
+
+`lock()` now rejects invalid inputs early:
+
+- `amount` must be greater than zero
+- `dataset_id` must not be empty
+- the token address must resolve to a valid token contract
+- buyer and seller must be different addresses
+- seller must not be the contract address placeholder used for invalid addresses
+
+These checks fail before any transfer is attempted, which keeps contract state and balances consistent.
+
+## Upgrades
+
+The contract exposes an admin-only `upgrade(admin, new_wasm_hash)` entrypoint that calls Soroban's built-in `update_current_contract_wasm` host function.
+
+Upgrade flow:
+
+1. Build and upload the new contract Wasm to Stellar.
+2. Capture the returned Wasm hash.
+3. Call `upgrade(admin, new_wasm_hash)` from the current admin address.
+4. Verify the deployment by re-reading the existing escrow state.
+
+The upgrade call requires admin authentication. Non-admin callers are rejected.
 
 ## Verification scripts
 

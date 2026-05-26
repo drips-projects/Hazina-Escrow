@@ -15,7 +15,7 @@ import _swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 
 import { datasetsRouter } from './datasets/datasets.router';
-import { paymentsRouter } from './payments/payments.router';
+import { paymentsRouter, startDeliveryRetryWorker, stopDeliveryRetryWorker } from './payments/payments.router';
 import { agentRouter } from './agent/agent.router';
 import { webhooksRouter } from './webhooks/webhook.router';
 import { readStore } from './common/storage';
@@ -206,6 +206,8 @@ app.use('/api/agent', agentRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api', backupRouter);
 
+startDeliveryRetryWorker();
+
 // Create HTTP server and attach Express app
 const server = http.createServer(app);
 
@@ -232,6 +234,7 @@ server.listen(PORT, () => {
 // Graceful shutdown for WebSocket server
 process.on('SIGTERM', () => {
   console.log('[Server] Shutting down gracefully...');
+  stopDeliveryRetryWorker();
   wsServer.shutdown();
   server.close(() => {
     console.log('[Server] HTTP server closed');
@@ -241,6 +244,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('[Server] Shutting down gracefully...');
+  stopDeliveryRetryWorker();
   wsServer.shutdown();
   server.close(() => {
     console.log('[Server] HTTP server closed');

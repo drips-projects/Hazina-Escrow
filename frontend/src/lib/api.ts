@@ -156,13 +156,18 @@ export interface PaginatedDatasets {
 export interface QueryResult {
   success: boolean;
   demo?: boolean;
-  data: Record<string, unknown>;
-  ai: { summary: string; answer?: string };
+  pendingDelivery?: boolean;
+  warning?: string | null;
+  data?: Record<string, unknown>;
+  ai?: { summary: string; answer?: string };
   transaction: {
     hash: string;
+    status: string;
+    deliveryStatus: 'pending' | 'delivered' | 'failed';
     amount: number;
     sellerReceived: number;
     platformFee: number;
+    deliveryError?: string;
   };
 }
 

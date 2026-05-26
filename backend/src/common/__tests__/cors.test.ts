@@ -21,8 +21,10 @@ describe('CORS configuration', () => {
     expect(parseCorsAllowedOrigins({})).toEqual(['http://localhost:5173']);
   });
 
-  it('does not default to localhost in production', () => {
-    expect(parseCorsAllowedOrigins({ NODE_ENV: 'production' })).toEqual([]);
+  it('throws in production when FRONTEND_URL is missing', () => {
+    expect(() => parseCorsAllowedOrigins({ NODE_ENV: 'production' })).toThrow(
+      'FRONTEND_URL must be set in production',
+    );
   });
 
   it('allows requests from whitelisted browser origins', () => {
@@ -52,5 +54,20 @@ describe('CORS configuration', () => {
       expect(error).toEqual(new Error('Origin https://evil.example is not allowed by CORS'));
       expect(allow).toBeUndefined();
     });
+  });
+
+  it('strips localhost from production whitelists', () => {
+    const origins = parseCorsAllowedOrigins({
+      NODE_ENV: 'production',
+      CORS_ALLOWED_ORIGINS: 'https://app.hazina.example,http://localhost:5173',
+    });
+
+    expect(origins).toEqual(['https://app.hazina.example']);
+  });
+
+  it('rejects localhost origins in production when FRONTEND_URL is missing', () => {
+    expect(() => createCorsOptions({ NODE_ENV: 'production', FRONTEND_URL: '' })).toThrow(
+      'FRONTEND_URL must be set in production',
+    );
   });
 });

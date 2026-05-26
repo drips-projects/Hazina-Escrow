@@ -5,12 +5,15 @@ import {
   getDataset,
   updateDataset,
   addTransaction,
+  getFailedDeliveryTransactions,
+  getTransactionByHash,
+  updateTransactionByHash,
   txHashUsed,
 } from "../common/storage";
 import { validateBody } from "../common/validate";
 import { generateDataSummary } from "../ai/claude.service";
 import { notifySeller } from "../webhooks/webhook.service";
-import { getEscrow, releaseEscrow, refundEscrow, usdcToStroops } from "../lib/contract.client";
+import { verifyStellarPayment } from "./stellar.service";
 import { sanitizeUserText } from "../common/sanitize";
 import { transactionEventEmitter } from "../websocket/transaction-events";
 import { requireAdminKey } from "../common/auth.middleware";
@@ -18,7 +21,7 @@ import { requireAdminKey } from "../common/auth.middleware";
 export const paymentsRouter = Router();
 
 const verifySchema = z.object({
-  escrowId: z.number().int().nonnegative(),
+  txHash: z.string().min(1),
   buyerQuestion: z
     .string()
     .max(500)
@@ -91,16 +94,18 @@ const verifyDemoSchema = z.object({
  *           schema:
  *             type: object
  *             required:
- *               - escrowId
+ *               - txHash
  *             properties:
- *               escrowId:
- *                 type: integer
- *                 description: The escrow_id returned by lock() on the Soroban contract
+ *               txHash:
+ *                 type: string
+ *                 description: Stellar transaction hash for the buyer payment
  *               buyerQuestion:
  *                 type: string
  *     responses:
  *       200:
- *         description: Data released successfully
+ *         description: Payment verified and data delivered successfully
+ *       202:
+ *         description: Payment verified but delivery is pending retry
  *       400:
  *         description: Invalid transaction hash or payment
  *       404:
@@ -170,207 +175,273 @@ paymentsRouter.post("/query/:id", (req: Request, res: Response) => {
   });
 });
 
-// POST /api/verify/:id — verify on-chain escrow lock and release funds via Soroban contract
+async function deliverVerifiedPayment(params: {
+  transactionId: string;
+  txHash: string;
+  datasetId: string;
+  buyerQuestion?: string;
+}) {
+  const { transactionId, txHash, datasetId, buyerQuestion } = params;
+  const dataset = await getDataset(datasetId);
+  if (!dataset) {
+    throw new Error("Dataset not found");
+  }
+
+  const summaryResult = await generateDataSummary(dataset.data, buyerQuestion);
+  const sellerAmount = parseFloat((dataset.pricePerQuery * 0.95).toFixed(7));
+  const platformFee = parseFloat((dataset.pricePerQuery * 0.05).toFixed(4));
+
+  await updateDataset(dataset.id, {
+    queriesServed: dataset.queriesServed + 1,
+    totalEarned: parseFloat((dataset.totalEarned + sellerAmount).toFixed(4)),
+  });
+
+  await updateTransactionByHash(txHash, {
+    status: "completed",
+    deliveryStatus: "delivered",
+    deliveryError: undefined,
+    deliveredAt: new Date().toISOString(),
+    aiSummary: summaryResult.summary,
+    sellerPaid: true,
+    sellerAmount,
+  });
+
+  transactionEventEmitter.updateTransactionStatus(transactionId, dataset.id, "completed", {
+    amount: dataset.pricePerQuery.toString(),
+    aiSummary: summaryResult.summary,
+    deliveryStatus: "delivered",
+  });
+
+  notifySeller(dataset.sellerWallet, "payment.received", {
+    datasetId: dataset.id,
+    datasetName: dataset.name,
+    txHash,
+    amount: dataset.pricePerQuery,
+    buyerQuery,
+  }).catch(() => {});
+
+  return {
+    success: true,
+    data: dataset.data,
+    ai: {
+      summary: summaryResult.summary,
+      answer: summaryResult.answer,
+    },
+    transaction: {
+      hash: txHash,
+      status: "completed" as const,
+      deliveryStatus: "delivered" as const,
+      amount: dataset.pricePerQuery,
+      sellerReceived: sellerAmount,
+      platformFee,
+    },
+  };
+}
+
+async function markDeliveryFailure(params: {
+  transactionId: string;
+  txHash: string;
+  datasetId: string;
+  buyerQuestion?: string;
+  error: unknown;
+}) {
+  const { transactionId, txHash, datasetId, buyerQuestion, error } = params;
+  const dataset = await getDataset(datasetId);
+  if (!dataset) {
+    throw new Error("Dataset not found");
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  const existing = await getTransactionByHash(txHash);
+  await updateTransactionByHash(txHash, {
+    status: "verified",
+    deliveryStatus: "failed",
+    deliveryError: message,
+    deliveryAttempts: (existing?.deliveryAttempts ?? 0) + 1,
+    buyerQuery,
+  });
+
+  transactionEventEmitter.updateTransactionStatus(transactionId, dataset.id, "delivery_failed", {
+    amount: dataset.pricePerQuery.toString(),
+    buyerQuery,
+    deliveryStatus: "failed",
+    error: message,
+  });
+
+  return {
+    success: true,
+    pendingDelivery: true,
+    warning: "DELIVERY_PENDING_RETRY",
+    transaction: {
+      hash: txHash,
+      status: "delivery_failed" as const,
+      deliveryStatus: "failed" as const,
+      amount: dataset.pricePerQuery,
+      sellerReceived: parseFloat((dataset.pricePerQuery * 0.95).toFixed(7)),
+      platformFee: parseFloat((dataset.pricePerQuery * 0.05).toFixed(4)),
+      deliveryError: message,
+    },
+  };
+}
+
+export async function retryFailedDeliveries(): Promise<void> {
+  const failedTransactions = await getFailedDeliveryTransactions();
+
+  await Promise.all(
+    failedTransactions.map(async (transaction) => {
+      try {
+        await deliverVerifiedPayment({
+          transactionId: transaction.id,
+          txHash: transaction.txHash,
+          datasetId: transaction.datasetId,
+          buyerQuestion: transaction.buyerQuery,
+        });
+      } catch (error) {
+        await markDeliveryFailure({
+          transactionId: transaction.id,
+          txHash: transaction.txHash,
+          datasetId: transaction.datasetId,
+          buyerQuestion: transaction.buyerQuery,
+          error,
+        });
+      }
+    }),
+  );
+}
+
+let deliveryRetryWorker: NodeJS.Timeout | null = null;
+
+export function startDeliveryRetryWorker(intervalMs = 60_000): void {
+  if (deliveryRetryWorker) {
+    return;
+  }
+
+  void retryFailedDeliveries().catch((error) => {
+    console.error("[Escrow] Initial delivery retry run failed:", error);
+  });
+
+  deliveryRetryWorker = setInterval(() => {
+    void retryFailedDeliveries().catch((error) => {
+      console.error("[Escrow] Delivery retry worker failed:", error);
+    });
+  }, intervalMs);
+}
+
+export function stopDeliveryRetryWorker(): void {
+  if (!deliveryRetryWorker) {
+    return;
+  }
+
+  clearInterval(deliveryRetryWorker);
+  deliveryRetryWorker = null;
+}
+
+// POST /api/verify/:id — verify payment on Stellar and release the dataset to the buyer
 paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Request, res: Response) => {
-  const { escrowId, buyerQuestion } = req.body as z.infer<typeof verifySchema>;
+  const { txHash, buyerQuestion } = req.body as z.infer<typeof verifySchema>;
   const dataset = getDataset(req.params.id);
 
   if (!dataset) return res.status(404).json({ error: "Dataset not found" });
 
-  const escrowKey = `escrow-${escrowId}`;
-  if (txHashUsed(escrowKey)) {
+  if (await txHashUsed(txHash)) {
     return res.status(400).json({ error: "Escrow already processed" });
   }
 
   const transactionId = `tx-${uuidv4()}`;
+  const destinationAddress = process.env.ESCROW_WALLET || dataset.sellerWallet;
 
   try {
-    // Emit verifying status
     transactionEventEmitter.updateTransactionStatus(
       transactionId,
       dataset.id,
-      "verifying"
+      "verifying",
+      {
+        amount: dataset.pricePerQuery.toString(),
+        buyerQuery,
+      }
     );
 
-    // Verify the lock exists on the Soroban contract
-    let escrow;
-    try {
-      escrow = await getEscrow(escrowId);
-    } catch (err) {
+    const verification = await verifyStellarPayment({
+      txHash,
+      expectedAmount: dataset.pricePerQuery,
+      destinationAddress,
+    });
+
+    if (!verification.valid) {
       transactionEventEmitter.updateTransactionStatus(
         transactionId,
         dataset.id,
         "failed",
         {
-          error: `Escrow #${escrowId} not found on contract`,
+          error: verification.reason || "Stellar payment verification failed",
         }
       );
       return res.status(400).json({
-        error: `Escrow #${escrowId} not found on contract: ${err instanceof Error ? err.message : err}`,
+        error: verification.reason || "Stellar payment verification failed",
       });
     }
 
-    if (escrow.released) {
-      transactionEventEmitter.updateTransactionStatus(
-        transactionId,
-        dataset.id,
-        "failed",
-        { error: "Escrow already released" }
-      );
-      return res.status(400).json({ error: "Escrow already released" });
-    }
-    if (escrow.refunded) {
-      transactionEventEmitter.updateTransactionStatus(
-        transactionId,
-        dataset.id,
-        "failed",
-        { error: "Escrow already refunded" }
-      );
-      return res.status(400).json({ error: "Escrow already refunded" });
-    }
-    if (escrow.dataset_id !== dataset.id) {
-      transactionEventEmitter.updateTransactionStatus(
-        transactionId,
-        dataset.id,
-        "failed",
-        { error: `Escrow dataset mismatch` }
-      );
-      return res.status(400).json({
-        error: `Escrow dataset mismatch: expected ${dataset.id}, got ${escrow.dataset_id}`,
-      });
-    }
+    await addTransaction({
+      id: transactionId,
+      datasetId: dataset.id,
+      txHash,
+      amount: dataset.pricePerQuery,
+      status: "verified",
+      deliveryStatus: "pending",
+      sellerPaid: false,
+      buyerQuery,
+      timestamp: new Date().toISOString(),
+      verifiedAt: new Date().toISOString(),
+      deliveryAttempts: 0,
+    });
 
-    const expectedStroops = usdcToStroops(dataset.pricePerQuery);
-    const tolerance = usdcToStroops(0.001);
-    if (escrow.amount < expectedStroops - tolerance) {
-      transactionEventEmitter.updateTransactionStatus(
-        transactionId,
-        dataset.id,
-        "failed",
-        { error: `Escrow amount too low` }
-      );
-      return res.status(400).json({
-        error: `Escrow amount too low: expected ${expectedStroops} stroops, got ${escrow.amount}`,
-      });
-    }
-
-    // Emit payment received
     transactionEventEmitter.receivePayment(
       transactionId,
       dataset.id,
       dataset.pricePerQuery.toString()
     );
 
-    // Generate AI summary — refund and abort if this fails
-    let summary = "";
-    let answer: string | undefined;
-    try {
-      const result = await generateDataSummary(dataset.data, buyerQuestion);
-      summary = result.summary;
-      answer = result.answer;
-    } catch (aiErr) {
-      console.error("[Escrow] AI step failed — refunding buyer:", aiErr);
-      transactionEventEmitter.updateTransactionStatus(
-        transactionId,
-        dataset.id,
-        "refunded",
-        { error: "AI processing failed" }
-      );
-      try {
-        const refundTxHash = await refundEscrow(escrowId);
-        console.log(`[Escrow] Refunded escrow #${escrowId} → ${refundTxHash}`);
-      } catch (refundErr) {
-        console.error("[Escrow] Refund also failed:", refundErr);
-      }
-      return res.status(500).json({ error: "AI processing failed — escrow refunded" });
-    }
-
-    // Release funds on-chain: contract pays 95% to seller, 5% to admin
-    let releaseTxHash: string | undefined;
-    const sellerAmount = parseFloat((dataset.pricePerQuery * 0.95).toFixed(7));
-    try {
-      releaseTxHash = await releaseEscrow(escrowId);
-      sellerPaid = true;
-      console.log(`[Escrow] Released escrow #${escrowId} → ${releaseTxHash}`);
-
-      // Emit payment forwarded
-      transactionEventEmitter.forwardPayment(
-        transactionId,
-        dataset.id,
-        sellerAmount.toString(),
-        (dataset.pricePerQuery * 0.05).toFixed(4)
-      );
-    } catch (releaseErr) {
-      console.error("[Escrow] Release failed:", releaseErr);
-    }
-
-    // Update dataset stats
-    updateDataset(dataset.id, {
-      queriesServed: dataset.queriesServed + 1,
-      totalEarned: parseFloat((dataset.totalEarned + sellerAmount).toFixed(4)),
-    });
-
-    // Log transaction (escrowKey used as txHash for replay protection)
-    addTransaction({
-      id: transactionId,
-      datasetId: dataset.id,
-      txHash: escrowKey,
-      amount: dataset.pricePerQuery,
-      sellerPaid,
-      sellerAmount,
-      buyerQuery: buyerQuestion,
-      aiSummary: summary,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Emit completed status
     transactionEventEmitter.updateTransactionStatus(
       transactionId,
       dataset.id,
-      "completed",
+      "delivery_pending",
       {
         amount: dataset.pricePerQuery.toString(),
-        aiSummary: summary,
+        buyerQuery,
+        deliveryStatus: "pending",
       }
     );
 
-    // Emit dataset queried event
-    transactionEventEmitter.queryDataset(
-      transactionId,
-      dataset.id,
-      dataset.queriesServed + 1
-    );
-
-    // Notify seller via webhooks
-    notifySeller(dataset.sellerWallet, "payment.received", {
-      datasetId: dataset.id,
-      datasetName: dataset.name,
-      escrowId,
-      amount: dataset.pricePerQuery,
-      buyerQuery: buyerQuestion,
-    }).catch(() => { });
-
-    if (releaseTxHash) {
-      notifySeller(dataset.sellerWallet, "payment.forwarded", {
+    try {
+      const response = await deliverVerifiedPayment({
+        transactionId,
+        txHash,
         datasetId: dataset.id,
-        datasetName: dataset.name,
-        releaseTxHash,
-        amount: sellerAmount,
-      }).catch(() => { });
-    }
+        buyerQuestion,
+      });
 
-    return res.json({
-      success: true,
-      data: dataset.data,
-      ai: { summary, answer },
-      transaction: {
-        escrowId,
-        amount: dataset.pricePerQuery,
-        sellerReceived: sellerAmount,
-        platformFee: parseFloat((dataset.pricePerQuery * 0.05).toFixed(4)),
-        releaseTxHash: releaseTxHash ?? null,
-      },
-    });
+      transactionEventEmitter.queryDataset(
+        transactionId,
+        dataset.id,
+        dataset.queriesServed + 1
+      );
+
+      return res.json({
+        ...response,
+        warning: null,
+      });
+    } catch (deliveryErr) {
+      console.error("[Escrow] Delivery failed — queued for retry:", deliveryErr);
+      const pendingResponse = await markDeliveryFailure({
+        transactionId,
+        txHash,
+        datasetId: dataset.id,
+        buyerQuestion,
+        error: deliveryErr,
+      });
+
+      return res.status(202).json(pendingResponse);
+    }
   } catch (err) {
     console.error("Verification error:", err);
     transactionEventEmitter.updateTransactionStatus(
@@ -441,6 +512,10 @@ paymentsRouter.post("/verify/:id/demo", validateBody(verifyDemoSchema), async (r
     datasetId: dataset.id,
     txHash: `demo-${Date.now()}`,
     amount: dataset.pricePerQuery,
+    status: "completed",
+    deliveryStatus: "delivered",
+    sellerPaid: true,
+    sellerAmount,
     buyerQuery: buyerQuestion,
     aiSummary: summary,
     timestamp: new Date().toISOString(),
@@ -471,6 +546,8 @@ paymentsRouter.post("/verify/:id/demo", validateBody(verifyDemoSchema), async (r
     ai: { summary, answer },
     transaction: {
       hash: `demo-${Date.now()}`,
+      status: "completed",
+      deliveryStatus: "delivered",
       amount: dataset.pricePerQuery,
       sellerReceived: parseFloat(sellerAmount.toFixed(4)),
       platformFee: parseFloat(platformFee.toFixed(4)),

@@ -21,8 +21,16 @@ export interface Transaction {
   datasetId: string;
   txHash: string;
   amount: number;
+  status?: 'pending' | 'verifying' | 'verified' | 'completed' | 'failed' | 'refunded';
+  deliveryStatus?: 'pending' | 'delivered' | 'failed';
+  sellerPaid?: boolean;
+  sellerAmount?: number;
   buyerQuery?: string;
   aiSummary?: string;
+  deliveryAttempts?: number;
+  deliveryError?: string;
+  verifiedAt?: string;
+  deliveredAt?: string;
   timestamp: string;
 }
 
@@ -132,6 +140,22 @@ export async function addTransaction(tx: Transaction): Promise<void> {
   });
 }
 
+export async function getTransactionByHash(txHash: string): Promise<Transaction | undefined> {
+  return (await readStore()).transactions.find((tx) => tx.txHash === txHash);
+}
+
+export async function updateTransactionByHash(
+  txHash: string,
+  updates: Partial<Transaction>,
+): Promise<Transaction | null> {
+  return enqueue(async (store) => {
+    const idx = store.transactions.findIndex((tx) => tx.txHash === txHash);
+    if (idx === -1) return [store, null];
+    store.transactions[idx] = { ...store.transactions[idx], ...updates };
+    return [store, store.transactions[idx]];
+  });
+}
+
 export async function getTransactions(datasetId?: string, limit?: number, offset?: number): Promise<Transaction[]> {
   const store = await readStore();
   let transactions = datasetId ? store.transactions.filter((t) => t.datasetId === datasetId) : store.transactions;
@@ -150,6 +174,11 @@ export async function getTransactions(datasetId?: string, limit?: number, offset
 export async function getTransactionsCount(datasetId?: string): Promise<number> {
   const store = await readStore();
   return datasetId ? store.transactions.filter((t) => t.datasetId === datasetId).length : store.transactions.length;
+}
+
+export async function getFailedDeliveryTransactions(): Promise<Transaction[]> {
+  const store = await readStore();
+  return store.transactions.filter((tx) => tx.deliveryStatus === 'failed');
 }
 
 export async function txHashUsed(txHash: string): Promise<boolean> {

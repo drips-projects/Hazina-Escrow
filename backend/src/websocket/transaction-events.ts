@@ -58,6 +58,7 @@ class TransactionEventEmitter extends EventEmitter {
         amount: metadata?.amount || '0',
         buyerQuery: metadata?.buyerQuery,
         aiSummary: metadata?.aiSummary,
+        deliveryStatus: metadata?.deliveryStatus,
         timestamp: new Date().toISOString(),
         error: metadata?.error,
       },
