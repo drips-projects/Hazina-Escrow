@@ -1,5 +1,34 @@
 const REQUEST_THROTTLE_MS = 250;
 
+// Issue #252 — cap concurrent in-flight HTTP requests so a flood of parallel
+// calls (e.g. dashboard mount firing many fetches at once) can't overwhelm the
+// backend rate limiter or saturate the network. Configurable via
+// VITE_MAX_CONCURRENT_REQUESTS, default 8.
+const MAX_CONCURRENT_REQUESTS = (() => {
+  const env = import.meta.env as unknown as Record<string, string | undefined>;
+  const raw = (env.VITE_MAX_CONCURRENT_REQUESTS ?? '').toString().trim();
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 8;
+})();
+
+let inFlight = 0;
+const inFlightWaiters: Array<() => void> = [];
+
+async function acquireSlot(): Promise<void> {
+  if (inFlight < MAX_CONCURRENT_REQUESTS) {
+    inFlight += 1;
+    return;
+  }
+  await new Promise<void>(resolve => inFlightWaiters.push(resolve));
+  inFlight += 1;
+}
+
+function releaseSlot(): void {
+  inFlight = Math.max(0, inFlight - 1);
+  const next = inFlightWaiters.shift();
+  if (next) next();
+}
+
 const requestQueues = new Map<string, Promise<void>>();
 const requestStartedAt = new Map<string, number>();
 
@@ -271,25 +300,30 @@ function validateDataset(raw: unknown, index?: number): DatasetMeta {
 
 async function request<T>(url: string, options?: RequestOptions): Promise<T> {
   return scheduleRequest(getRequestKey(url, options), async () => {
-    const res = await fetchWithTimeout(url, options);
+    await acquireSlot();
+    try {
+      const res = await fetchWithTimeout(url, options);
 
-    // Parse JSON body once. If parsing fails, we fallback to null.
-    const data = await res.json().catch(() => null);
+      // Parse JSON body once. If parsing fails, we fallback to null.
+      const data = await res.json().catch(() => null);
 
-    if (!res.ok) {
-      throw new Error(data?.error || `HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+
+      if (data === null) {
+        throw new Error('Invalid response from server');
+      }
+
+      // Handle business-level failures returned with 2xx status codes
+      if (data && typeof data === 'object' && data.success === false) {
+        throw new Error(data.error || 'API request failed');
+      }
+
+      return data as T;
+    } finally {
+      releaseSlot();
     }
-
-    if (data === null) {
-      throw new Error('Invalid response from server');
-    }
-
-    // Handle business-level failures returned with 2xx status codes
-    if (data && typeof data === 'object' && data.success === false) {
-      throw new Error(data.error || 'API request failed');
-    }
-
-    return data as T;
   });
 }
 
@@ -405,4 +439,6 @@ export const api = {
 export function __resetRequestThrottleForTests() {
   requestQueues.clear();
   requestStartedAt.clear();
+  inFlight = 0;
+  inFlightWaiters.length = 0;
 }

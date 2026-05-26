@@ -179,12 +179,12 @@ app.get('/health', async (_req, res) => {
   });
 });
 
-// Global error handling middleware
+// Global error handling middleware — Issue #283 (standard error shape)
 app.use((err: Error, _req: Request, res: Response, _next: () => void) => {
   const message = err.message || 'Internal server error';
   console.error('[Global Error Handler]', err);
   Sentry.captureException(err);
-  res.status(500).json({ error: message });
+  res.status(500).json({ error: message, code: 'INTERNAL_ERROR' });
 });
 
 // Handle unhandled promise rejections
