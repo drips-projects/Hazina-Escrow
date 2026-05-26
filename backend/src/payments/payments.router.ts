@@ -11,6 +11,7 @@ import {
   txHashUsed,
 } from "../common/storage";
 import { validateBody } from "../common/validate";
+import { sellerShare, platformFee as computePlatformFee } from "../common/constants"; // Issue #273
 import { generateDataSummary } from "../ai/claude.service";
 import { notifySeller } from "../webhooks/webhook.service";
 import { verifyStellarPayment } from "./stellar.service";
@@ -188,8 +189,9 @@ async function deliverVerifiedPayment(params: {
   }
 
   const summaryResult = await generateDataSummary(dataset.data, buyerQuestion);
-  const sellerAmount = parseFloat((dataset.pricePerQuery * 0.95).toFixed(7));
-  const platformFee = parseFloat((dataset.pricePerQuery * 0.05).toFixed(4));
+  // Issue #273 — use named constants instead of hardcoded 0.95 / 0.05
+  const sellerAmount = sellerShare(dataset.pricePerQuery);
+  const platformFee = computePlatformFee(dataset.pricePerQuery);
 
   await updateDataset(dataset.id, {
     queriesServed: dataset.queriesServed + 1,
@@ -277,8 +279,8 @@ async function markDeliveryFailure(params: {
       status: "delivery_failed" as const,
       deliveryStatus: "failed" as const,
       amount: dataset.pricePerQuery,
-      sellerReceived: parseFloat((dataset.pricePerQuery * 0.95).toFixed(7)),
-      platformFee: parseFloat((dataset.pricePerQuery * 0.05).toFixed(4)),
+      sellerReceived: sellerShare(dataset.pricePerQuery),
+      platformFee: computePlatformFee(dataset.pricePerQuery),
       deliveryError: message,
     },
   };
@@ -489,8 +491,8 @@ paymentsRouter.post("/verify/:id/demo", validateBody(verifyDemoSchema), async (r
       "Demo mode: AI summary unavailable. Set ANTHROPIC_API_KEY to enable.";
   }
 
-  const sellerAmount = dataset.pricePerQuery * 0.95;
-  const platformFee = dataset.pricePerQuery * 0.05;
+  const sellerAmount = sellerShare(dataset.pricePerQuery);
+  const platformFee = computePlatformFee(dataset.pricePerQuery);
 
   // Emit payment forwarded
   transactionEventEmitter.forwardPayment(
