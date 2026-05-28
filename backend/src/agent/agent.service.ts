@@ -5,6 +5,7 @@ import {
   updateDataset,
   addTransaction,
   txHashUsed,
+  getAgentJobByTxHash,
 } from '../common/storage';
 import { verifyStellarPayment } from '../payments/stellar.service';
 import { sendUsdcPayment, getAgentPublicKey } from './agent.wallet';
@@ -41,6 +42,23 @@ export interface AgentJob {
   timestamp: string;
 }
 
+/**
+ * Returned by runResearchAgent when the supplied txHash has already been
+ * successfully processed.  The caller should surface this as HTTP 200 with
+ * an `idempotent: true` flag so clients can distinguish a replay hit from a
+ * genuine error.
+ */
+export interface IdempotentJobResult {
+  idempotent: true;
+  txHash: string;
+  /** Original query text stored when the job was first processed. */
+  query: string | undefined;
+  /** AI analysis text from the original job, if available. */
+  cachedSummary: string | undefined;
+  /** ISO timestamp of the original job. */
+  originalTimestamp: string | undefined;
+}
+
 export interface PurchaseRecord {
   datasetId: string;
   datasetName: string;
@@ -55,10 +73,27 @@ export interface PurchaseRecord {
  * Verifies the human's 1 USDC payment then runs the full research pipeline.
  * Real mode: sends actual Stellar payments from agent's funded wallet.
  */
-export async function runResearchAgent(query: string, humanTxHash: string): Promise<AgentJob> {
-  // 1. Verify human's 1 USDC payment to escrow wallet
+export async function runResearchAgent(
+  query: string,
+  humanTxHash: string,
+): Promise<AgentJob | IdempotentJobResult> {
+  // 1. Idempotency guard — if this txHash was already processed, return the
+  //    cached result so callers can surface it as HTTP 200 rather than an error.
   if (await txHashUsed(humanTxHash)) {
-    throw new Error('Transaction hash already used');
+    const existing = await getAgentJobByTxHash(humanTxHash);
+    
+    if (!existing) {
+      throw new Error('Transaction hash already used');
+    }
+
+    const result: IdempotentJobResult = {
+      idempotent: true,
+      txHash: humanTxHash,
+      query: existing.buyerQuery,
+      cachedSummary: existing.aiSummary,
+      originalTimestamp: existing.timestamp,
+    };
+    return result;
   }
 
   const escrowWallet = process.env.ESCROW_WALLET;

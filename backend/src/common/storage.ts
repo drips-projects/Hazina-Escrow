@@ -199,6 +199,17 @@ export async function getTransactionByHash(txHash: string): Promise<Transaction 
   return (await readStore()).transactions.find(tx => tx.txHash === txHash);
 }
 
+/**
+ * Returns the top-level agent-job transaction for a given human payment txHash.
+ * Used to serve a cached result when the same txHash is submitted more than once
+ * (idempotency key behaviour).
+ */
+export async function getAgentJobByTxHash(txHash: string): Promise<Transaction | undefined> {
+  return (await readStore()).transactions.find(
+    tx => tx.txHash === txHash && tx.datasetId === 'agent-job',
+  );
+}
+
 export async function getTransactionByMemo(memo: string): Promise<Transaction | undefined> {
   return (await readStore()).transactions.find(tx => tx.memo === memo);
 }
