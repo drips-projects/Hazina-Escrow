@@ -4,6 +4,10 @@ import { HORIZON_URL, SOROBAN_RPC_URL, USDC_ISSUER, getNetworkPassphrase } from 
 const server = new StellarSdk.Horizon.Server(HORIZON_URL);
 const CONTRACT_CALL_TIMEOUT_MS = 30_000;
 
+// SECURITY: The raw value of AGENT_WALLET_SECRET must NEVER appear in any log,
+// error message, or exception payload shipped to Datadog or Sentry.
+// Always derive and log the public key instead.
+
 export interface SendPaymentParams {
   destinationAddress: string;
   amount: string; // string to match Stellar SDK precision
@@ -126,12 +130,45 @@ export async function callContract(
   throw new Error(`Contract call ${method} timed out after ${CONTRACT_CALL_TIMEOUT_MS}ms`);
 }
 
+// SECURITY: returns only the derived PUBLIC key — the raw secret is never exposed.
 export function getAgentPublicKey(): string | null {
-  const secret = process.env.AGENT_WALLET_SECRET;
-  if (!secret) return null;
+  const rawSecret = process.env.AGENT_WALLET_SECRET;
+  if (!rawSecret) return null;
   try {
-    return StellarSdk.Keypair.fromSecret(secret).publicKey();
+    return StellarSdk.Keypair.fromSecret(rawSecret).publicKey();
   } catch {
+    // Do NOT log the exception message here — it may echo key material.
     return null;
   }
+}
+
+/**
+ * Call once at application startup to verify the agent wallet is properly
+ * configured. Logs ONLY the derived public key — never the secret.
+ * Throws if the secret is absent or malformed.
+ */
+export function validateAgentWallet(): void {
+  const rawSecret = process.env.AGENT_WALLET_SECRET;
+
+  if (!rawSecret) {
+    throw new Error(
+      '[AgentWallet] AGENT_WALLET_SECRET is not set. ' +
+      'The agent wallet cannot sign transactions.',
+    );
+  }
+
+  let publicKey: string;
+  try {
+    // Only the derived public key is ever passed to the logger — not the secret.
+    publicKey = StellarSdk.Keypair.fromSecret(rawSecret).publicKey();
+  } catch {
+    // Do NOT include the caught error in this throw — it may echo key material.
+    throw new Error(
+      '[AgentWallet] AGENT_WALLET_SECRET is set but is not a valid Stellar secret key. ' +
+      'Check the value in your environment configuration.',
+    );
+  }
+
+  // Safe to log — publicKey is the on-chain address, not secret key material.
+  console.log(`[AgentWallet] Wallet ready. Public key: ${publicKey}`);
 }

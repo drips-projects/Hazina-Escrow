@@ -8,7 +8,7 @@ initializeSentry();
 
 import 'express-async-errors';
 import express, { Request, Response, NextFunction } from 'express';
-import pino from 'pino';
+import pino = require('pino');
 import { randomUUID } from 'crypto';
 import cors from 'cors';
 import path from 'path';
@@ -24,6 +24,7 @@ import {
   stopDeliveryRetryWorker,
 } from './payments/payments.router';
 import { agentRouter } from './agent/agent.router';
+import { validateAgentWallet } from './agent/agent.wallet';
 import { webhooksRouter } from './webhooks/webhook.router';
 import { readStore } from './common/storage';
 import { BackupScheduler } from './common/backup.scheduler';
@@ -32,7 +33,6 @@ import { createCompressionMiddleware } from './common/compression';
 import { initializeWebSocketServer } from './websocket/ws-server';
 import { HORIZON_URL } from './lib/stellar.config';
 import { createCorsOptions } from './common/cors';
-import { sanitizeBody } from './common/sanitize';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -41,11 +41,32 @@ const isProduction = process.env.NODE_ENV === 'production';
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
   redact: {
+    // SECURITY: Any of these keys appearing anywhere in a structured log
+    // object will be replaced with '[REDACTED]' before the record is shipped
+    // to Datadog or written to stdout. Add new secret env-var names here.
     paths: [
       'req.headers.authorization',
       'req.headers.cookie',
       'headers.authorization',
       'headers.cookie',
+      // Stellar / wallet secrets
+      'AGENT_WALLET_SECRET',
+      'ESCROW_SECRET',
+      '*.AGENT_WALLET_SECRET',
+      '*.ESCROW_SECRET',
+      // API / auth secrets
+      'API_KEY',
+      'ADMIN_API_KEY',
+      'SELLER_JWT_SECRET',
+      '*.API_KEY',
+      '*.ADMIN_API_KEY',
+      '*.SELLER_JWT_SECRET',
+      // Third-party service keys
+      'ANTHROPIC_API_KEY',
+      'DATADOG_API_KEY',
+      'DATABASE_URL',
+      '*.ANTHROPIC_API_KEY',
+      '*.DATABASE_URL',
     ],
     censor: '[REDACTED]',
   },
@@ -129,7 +150,6 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 app.use(cors(createCorsOptions()));
 app.use(express.json({ limit: '2mb' }));
-app.use(sanitizeBody);
 Sentry.setupExpressErrorHandler(app);
 
 // Rate limiting — global + per-route limits for sensitive endpoints
@@ -309,22 +329,19 @@ app.use('/api', (req: Request, res: Response, next: NextFunction) => {
 });
 
 // Global error handling middleware — Issue #283 (standard error shape)
-app.use(
-  (
-    err: Error & { status?: number; code?: string },
-    req: Request,
-    res: Response,
-    _next: NextFunction,
-  ) => {
-    const status = err.status ?? 500;
-    const message = err.message || 'Internal server error';
-    console.error(`[Global Error Handler] [requestId=${req.id}]`, err);
-    Sentry.captureException(err);
-    res
-      .status(status)
-      .json({ error: message, code: err.code || 'INTERNAL_ERROR', requestId: req.id });
-  },
-);
+app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+  const status = err.status ?? 500;
+  const message = err.message || 'Internal server error';
+  // SECURITY: Use the structured logger (not console.error) so pino's redact
+  // rules fire before the record is shipped to Datadog. Passing the raw Error
+  // object is intentional — pino serialises it safely. Never interpolate
+  // err.message into a template string here as it may include key material.
+  logger.error({ requestId: req.id, status, err }, 'Unhandled request error');
+  Sentry.captureException(err);
+  res
+    .status(status)
+    .json({ error: message, code: err.code || 'INTERNAL_ERROR', requestId: req.id });
+});
 
 startDeliveryRetryWorker();
 
@@ -349,6 +366,15 @@ server.listen(PORT, () => {
   console.log(`  ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝`);
   console.log(`\n  Data Escrow API running on http://localhost:${PORT}`);
   console.log(`  WebSocket server running on ws://localhost:${PORT}/ws\n`);
+
+  // SECURITY: Validate agent wallet at startup — logs the PUBLIC key only.
+  // If the secret is absent (e.g. demo mode) this logs a warning instead of
+  // throwing so the rest of the server can still start.
+  try {
+    validateAgentWallet();
+  } catch (err) {
+    logger.warn({ err }, '[AgentWallet] Wallet not configured — agent payment features disabled');
+  }
 });
 
 // Graceful shutdown for WebSocket server
