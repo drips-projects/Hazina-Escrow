@@ -33,6 +33,7 @@ function seedStore(overrides?: Partial<Store>): void {
     datasets: [FIXTURE_DATASET],
     transactions: [],
     webhooks: [],
+    payoutFailures: [],
   };
   writeStore({
     ...base,

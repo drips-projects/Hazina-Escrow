@@ -28,7 +28,7 @@ const seed = () => {
   const clean = process.argv.includes('--clean');
   console.log(`Starting seeding... ${clean ? '(Cleaning existing data)' : '(Appending to existing data)'}`);
 
-  const store: Store = clean ? { datasets: [], transactions: [], webhooks: [] } : readStore();
+  const store: Store = clean ? { datasets: [], transactions: [], webhooks: [], payoutFailures: [] } : readStore();
 
   // Generate Datasets
   const numDatasets = 25;

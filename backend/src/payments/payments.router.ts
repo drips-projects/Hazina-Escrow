@@ -13,8 +13,16 @@ import { generateDataSummary } from "../ai/claude.service";
 import { sendUsdcPayment } from "../agent/agent.wallet";
 import { notifySeller } from "../webhooks/webhook.service";
 import { sanitizeUserText } from "../common/sanitize";
+import { requireAdminKey } from "../common/auth.middleware";
+import {
+  getManualReviewPayouts,
+  recordPayoutFailure,
+  runDuePayoutRetries,
+  scheduleRetrySweep,
+} from "./payout-retry.service";
 
 export const paymentsRouter = Router();
+scheduleRetrySweep(1_000);
 
 const verifySchema = z.object({
   txHash: z.string().trim().min(1, "txHash is required").max(200),
@@ -225,6 +233,13 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
         "[Escrow] Seller payment failed (data still delivered):",
         payErr instanceof Error ? payErr.message : payErr,
       );
+      await recordPayoutFailure({
+        datasetId: dataset.id,
+        sellerWallet: dataset.sellerWallet,
+        buyerTxHash: txHash,
+        intendedAmount: sellerAmount,
+        error: payErr instanceof Error ? payErr.message : String(payErr),
+      });
     }
 
     // Update dataset stats
@@ -278,6 +293,20 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
     console.error("Verification error:", err);
     return res.status(500).json({ error: "Internal verification error" });
   }
+});
+
+// GET /api/admin/payouts/stuck — list payouts requiring manual review
+paymentsRouter.get("/admin/payouts/stuck", requireAdminKey, (_req: Request, res: Response) => {
+  return res.json({
+    payouts: getManualReviewPayouts(),
+  });
+});
+
+// POST /api/admin/payouts/retry — trigger retry sweep now
+paymentsRouter.post("/admin/payouts/retry", requireAdminKey, async (_req: Request, res: Response) => {
+  const processed = await runDuePayoutRetries();
+  scheduleRetrySweep(1_000);
+  return res.json({ success: true, processed });
 });
 
 // POST /api/verify/:id/demo — demo mode (skip Stellar check) for hackathon

@@ -56,6 +56,7 @@ const BASE_STORE: Store = {
   ],
   transactions: [],
   webhooks: [],
+  payoutFailures: [],
 };
 
 function makeApp(): Express {
@@ -127,6 +128,7 @@ describeSocket('payments and agent integration routes', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.ESCROW_WALLET;
+    delete process.env.ADMIN_API_KEY;
 
     if (fs.existsSync(BACKUP_PATH)) {
       fs.copyFileSync(BACKUP_PATH, DATA_PATH);
@@ -165,6 +167,26 @@ describeSocket('payments and agent integration routes', () => {
       destinationAddress: ESCROW_WALLET,
     });
     expect(sendUsdcPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists failed seller payout for retries', async () => {
+    vi.mocked(sendUsdcPayment).mockRejectedValueOnce(new Error('temporary network error'));
+    const response = await request(app).post('/api/verify/ds-payment-1').send({
+      txHash: 'tx-failed-seller-payout',
+      buyerQuestion: 'What changed?',
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+
+    const persisted = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8')) as Store;
+    expect(persisted.payoutFailures).toHaveLength(1);
+    expect(persisted.payoutFailures[0]).toMatchObject({
+      datasetId: 'ds-payment-1',
+      buyerTxHash: 'tx-failed-seller-payout',
+      status: 'pending_retry',
+      retryCount: 0,
+    });
   });
 
   it('POST /api/verify/:id rejects replayed transaction hash', async () => {
@@ -217,6 +239,36 @@ describeSocket('payments and agent integration routes', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error).toContain('expired');
+  });
+
+  it('GET /api/admin/payouts/stuck lists manual review payouts', async () => {
+    writeStore({
+      ...BASE_STORE,
+      payoutFailures: [
+        {
+          id: 'pf-1',
+          datasetId: 'ds-payment-1',
+          sellerWallet: SELLER_WALLET,
+          buyerTxHash: 'tx-stuck',
+          intendedAmount: 0.95,
+          status: 'manual_review_needed',
+          retryCount: 3,
+          nextRetryAt: new Date().toISOString(),
+          lastError: 'all retries failed',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+    });
+    process.env.ADMIN_API_KEY = 'test-admin';
+
+    const response = await request(app)
+      .get('/api/admin/payouts/stuck')
+      .set('Authorization', 'Bearer test-admin');
+
+    expect(response.status).toBe(200);
+    expect(response.body.payouts).toHaveLength(1);
+    expect(response.body.payouts[0].status).toBe('manual_review_needed');
   });
 
   it('POST /api/agent/research/demo returns a valid report shape', async () => {
