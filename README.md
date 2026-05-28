@@ -1,6 +1,6 @@
 # Hazina Data Escrow
 
-> *Hazina* means **treasure** in Swahili.
+> _Hazina_ means **treasure** in Swahili.
 
 A Web3 data marketplace where **sellers** list valuable on-chain intelligence and **buyers** — including autonomous AI agents — purchase access using micropayments on Stellar. A Soroban smart contract enforces escrow on-chain. Claude AI synthesises every dataset into instant insights.
 
@@ -39,14 +39,14 @@ The Hazina escrow contract is written in **Rust**, compiled to **WebAssembly**, 
 
 ### Deployed Contract
 
-| | |
-|---|---|
-| **Contract ID** | `CCPG2CSL6WDUA2IFUDHFN5SCJQUTFCLFKMTARALQ5RWGB2RGG345HEEH` |
-| **Network** | Stellar Testnet |
-| **Explorer** | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CCPG2CSL6WDUA2IFUDHFN5SCJQUTFCLFKMTARALQ5RWGB2RGG345HEEH) |
-| **Admin** | `GA72WMKUB52OD2X437YOTJZXP3J7MV5G2RYC2JHFJJHWF6MBGQHVUMLO` |
-| **Platform Fee** | 5% (500 basis points) |
-| **Source** | `contracts/hazina-escrow/src/lib.rs` |
+|                  |                                                                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Contract ID**  | `CCPG2CSL6WDUA2IFUDHFN5SCJQUTFCLFKMTARALQ5RWGB2RGG345HEEH`                                                                          |
+| **Network**      | Stellar Testnet                                                                                                                     |
+| **Explorer**     | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CCPG2CSL6WDUA2IFUDHFN5SCJQUTFCLFKMTARALQ5RWGB2RGG345HEEH) |
+| **Admin**        | `GA72WMKUB52OD2X437YOTJZXP3J7MV5G2RYC2JHFJJHWF6MBGQHVUMLO`                                                                          |
+| **Platform Fee** | 5% (500 basis points)                                                                                                               |
+| **Source**       | `contracts/hazina-escrow/src/lib.rs`                                                                                                |
 
 ### What the Contract Does
 
@@ -68,14 +68,14 @@ Buyer           Contract              Seller
 
 ### Contract Functions
 
-| Function | Who Calls It | What It Does |
-|---|---|---|
-| `initialize(admin, fee_bps)` | Deployer (once) | Sets the admin address and platform fee (500 = 5%) |
-| `lock(buyer, seller, token, amount, dataset_id)` | Buyer | Transfers USDC from buyer into the contract. Returns an `escrow_id`. |
-| `release(admin, escrow_id)` | Hazina backend (admin) | Sends 95% to seller, 5% to admin. Fires a `released` event. |
-| `refund(admin, escrow_id)` | Hazina backend (admin) | Returns full amount to buyer if something goes wrong. |
-| `get_escrow(escrow_id)` | Anyone | Reads an escrow record (buyer, seller, amount, status). |
-| `get_fee()` | Anyone | Returns current platform fee in basis points. |
+| Function                                         | Who Calls It           | What It Does                                                         |
+| ------------------------------------------------ | ---------------------- | -------------------------------------------------------------------- |
+| `initialize(admin, fee_bps)`                     | Deployer (once)        | Sets the admin address and platform fee (500 = 5%)                   |
+| `lock(buyer, seller, token, amount, dataset_id)` | Buyer                  | Transfers USDC from buyer into the contract. Returns an `escrow_id`. |
+| `release(admin, escrow_id)`                      | Hazina backend (admin) | Sends 95% to seller, 5% to admin. Fires a `released` event.          |
+| `refund(admin, escrow_id)`                       | Hazina backend (admin) | Returns full amount to buyer if something goes wrong.                |
+| `get_escrow(escrow_id)`                          | Anyone                 | Reads an escrow record (buyer, seller, amount, status).              |
+| `get_fee()`                                      | Anyone                 | Returns current platform fee in basis points.                        |
 
 ### Why Soroban?
 
@@ -168,6 +168,7 @@ Browser                    Backend                  Stellar
 ```
 
 **Security checks on every payment:**
+
 1. Transaction exists and is confirmed on Stellar
 2. Payment destination is the correct escrow wallet
 3. Amount is exactly right (within 0.001 USDC tolerance)
@@ -229,10 +230,10 @@ Agent keeps 0.86 USDC profit
 
 ### Agent Endpoints
 
-| Endpoint | Description |
-|---|---|
-| `GET /api/agent/info` | Agent wallet address, fee, seller list, profit model |
-| `POST /api/agent/research` | Real mode — requires 1 USDC Stellar payment + txHash |
+| Endpoint                        | Description                                           |
+| ------------------------------- | ----------------------------------------------------- |
+| `GET /api/agent/info`           | Agent wallet address, fee, seller list, profit model  |
+| `POST /api/agent/research`      | Real mode — requires 1 USDC Stellar payment + txHash  |
 | `POST /api/agent/research/demo` | Demo mode — simulates payments, calls Claude for real |
 
 ### Example Query
@@ -249,15 +250,15 @@ Returns a full JSON research report with top opportunity, reasoning, alternative
 
 ## Tech Stack
 
-| Layer | Technology | What It Does |
-|-------|-----------|--------------|
-| **Frontend** | React 18 + Vite + TypeScript | Marketplace, sell, dashboard, agent UI |
-| **Styling** | TailwindCSS | Afrofuturist dark gold theme |
-| **Backend** | Node.js + Express + TypeScript | API server, payment verification, agent orchestration |
-| **Smart Contract** | Rust + Soroban (WebAssembly) | On-chain escrow, trustless payment routing |
-| **Blockchain** | Stellar Testnet + x402 protocol | Micropayments, USDC settlement |
-| **AI** | Anthropic Claude (`claude-sonnet-4-6`) | Data analysis + research synthesis |
-| **Storage** | JSON file (`data/datasets.json`) | Datasets and transaction history |
+| Layer              | Technology                             | What It Does                                          |
+| ------------------ | -------------------------------------- | ----------------------------------------------------- |
+| **Frontend**       | React 18 + Vite + TypeScript           | Marketplace, sell, dashboard, agent UI                |
+| **Styling**        | TailwindCSS                            | Afrofuturist dark gold theme                          |
+| **Backend**        | Node.js + Express + TypeScript         | API server, payment verification, agent orchestration |
+| **Smart Contract** | Rust + Soroban (WebAssembly)           | On-chain escrow, trustless payment routing            |
+| **Blockchain**     | Stellar Testnet + x402 protocol        | Micropayments, USDC settlement                        |
+| **AI**             | Anthropic Claude (`claude-sonnet-4-6`) | Data analysis + research synthesis                    |
+| **Storage**        | JSON file (`data/datasets.json`)       | Datasets and transaction history                      |
 
 ---
 
@@ -363,10 +364,14 @@ cd backend && npm run start:dev
 
 # Terminal 2 — Frontend
 cd frontend && npm run dev
+
+# Optional: Run Storybook for component development
+cd frontend && npm run storybook
 ```
 
 - Backend: http://localhost:3001
 - Frontend: http://localhost:5173
+- Storybook: http://localhost:6006 (if running)
 
 ### 4. Test without a real wallet
 
@@ -379,32 +384,47 @@ The AI Agent also has demo mode — go to `/agent`, type any query, click **Run 
 ## Pages & Features
 
 ### `/` — Landing Page
+
 - Live animated stats (datasets, queries, USDC earned)
 - How It Works walkthrough
 - Featured datasets
 - Links to marketplace and agent
+- **Interactive onboarding tour** for first-time visitors (auto-triggered)
 
 ### `/marketplace` — Browse & Buy
+
 - 6 seeded datasets (whale wallets, DeFi yields, risk scores, sentiment, NFT, arbitrage)
 - Filter by type, sort by price/popularity, search
 - Click any card → payment modal with demo mode checkbox
+- **Visual skeleton loaders** during data fetch for better UX
 
 ### `/sell` — List Your Data
+
 - Form: name, description, type, price, Stellar wallet, JSON data
 - Live preview card
 - Earnings calculator (10 / 100 / 1000 query projections)
 - Instant publish to marketplace
+- **Strict TypeScript validation** for all inputs
 
 ### `/agent` — AI Research Agent
+
 - Natural language query input
 - Example queries to click
 - Returns: top opportunity, reasoning, 2 alternatives, warnings, full analysis
 - Shows payment trail (4 seller payments + agent profit)
 
 ### `/dashboard` — Earnings & History
+
 - Real-time transaction list
 - Per-dataset earnings
 - Queries served counter
+- **Comprehensive skeleton layout** with shimmer animations during loading
+
+### Component Development
+
+- **Storybook integration** for isolated component development
+- Run `npm run storybook` to view component library
+- Stories available for DatasetCard and QueryModal components
 
 ---
 
@@ -412,29 +432,29 @@ The AI Agent also has demo mode — go to `/agent`, type any query, click **Run 
 
 ### Datasets
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`  | `/health` | Server health check |
-| `GET`  | `/api/datasets` | All datasets (metadata only) |
-| `GET`  | `/api/datasets/stats` | Platform totals |
-| `GET`  | `/api/datasets/:id` | Single dataset metadata |
-| `POST` | `/api/datasets` | Create new listing |
-| `GET`  | `/api/datasets/:id/transactions` | Transaction history |
+| Method | Endpoint                         | Description                  |
+| ------ | -------------------------------- | ---------------------------- |
+| `GET`  | `/health`                        | Server health check          |
+| `GET`  | `/api/datasets`                  | All datasets (metadata only) |
+| `GET`  | `/api/datasets/stats`            | Platform totals              |
+| `GET`  | `/api/datasets/:id`              | Single dataset metadata      |
+| `POST` | `/api/datasets`                  | Create new listing           |
+| `GET`  | `/api/datasets/:id/transactions` | Transaction history          |
 
 ### Payments (x402)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/query/:id` | Initiate query → 402 with payment instructions |
-| `POST` | `/api/verify/:id` | Submit txHash → verify on Stellar → release data + pay seller |
-| `POST` | `/api/verify/:id/demo` | Demo mode — skip payment, get AI analysis |
+| Method | Endpoint               | Description                                                   |
+| ------ | ---------------------- | ------------------------------------------------------------- |
+| `POST` | `/api/query/:id`       | Initiate query → 402 with payment instructions                |
+| `POST` | `/api/verify/:id`      | Submit txHash → verify on Stellar → release data + pay seller |
+| `POST` | `/api/verify/:id/demo` | Demo mode — skip payment, get AI analysis                     |
 
 ### AI Agent
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`  | `/api/agent/info` | Agent wallet, fee, sellers, profit model |
-| `POST` | `/api/agent/research` | Real mode — requires txHash of 1 USDC payment |
+| Method | Endpoint                   | Description                                           |
+| ------ | -------------------------- | ----------------------------------------------------- |
+| `GET`  | `/api/agent/info`          | Agent wallet, fee, sellers, profit model              |
+| `POST` | `/api/agent/research`      | Real mode — requires txHash of 1 USDC payment         |
 | `POST` | `/api/agent/research/demo` | Demo mode — simulated payments, real Claude synthesis |
 
 ---
@@ -478,14 +498,14 @@ HTTP's `402 Payment Required` status code — defined in 1991, never widely used
 
 ## Seeded Datasets
 
-| ID | Dataset | Price | Seller Wallet |
-|----|---------|-------|---------------|
-| ds-001 | Top 100 Whale Wallet Movements | $0.05 | `GB37MSLK...` |
-| ds-002 | DEX Arbitrage Signals — Last 24hrs | $0.10 | `GA62DGF2...` |
-| ds-003 | DeFi Yield Snapshot — 20+ Protocols | $0.02 | `GD4GDOPE...` |
+| ID     | Dataset                                   | Price | Seller Wallet |
+| ------ | ----------------------------------------- | ----- | ------------- |
+| ds-001 | Top 100 Whale Wallet Movements            | $0.05 | `GB37MSLK...` |
+| ds-002 | DEX Arbitrage Signals — Last 24hrs        | $0.10 | `GA62DGF2...` |
+| ds-003 | DeFi Yield Snapshot — 20+ Protocols       | $0.02 | `GD4GDOPE...` |
 | ds-004 | Wallet Risk Scores — Top 500 DeFi Wallets | $0.03 | `GBMVCBYW...` |
-| ds-005 | NFT Floor Price Movements — Last 7 Days | $0.02 | `GCDDN2PN...` |
-| ds-006 | Crypto Social Sentiment Scores | $0.04 | `GC42G7GQ...` |
+| ds-005 | NFT Floor Price Movements — Last 7 Days   | $0.02 | `GCDDN2PN...` |
+| ds-006 | Crypto Social Sentiment Scores            | $0.04 | `GC42G7GQ...` |
 
 All seller wallets are funded Stellar testnet accounts with USDC trustlines, ready to receive payments.
 
@@ -493,28 +513,28 @@ All seller wallets are funded Stellar testnet accounts with USDC trustlines, rea
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Yes | Claude API key — [console.anthropic.com](https://console.anthropic.com) |
-| `ESCROW_WALLET` | Yes | Stellar address that receives buyer payments |
-| `AGENT_WALLET_SECRET` | Yes | Agent's Stellar secret key (signs outgoing seller payments) |
-| `AGENT_WALLET_PUBLIC` | No | Agent's Stellar public key (display only) |
-| `ESCROW_CONTRACT_ID` | No | Soroban contract address (for on-chain escrow integration) |
-| `PLATFORM_FEE` | No | Platform cut as decimal (default: 0.05) |
-| `PORT` | No | API port (default: 3001) |
-| `FRONTEND_URL` | No | CORS origin (default: http://localhost:5173) |
+| Variable              | Required | Description                                                             |
+| --------------------- | -------- | ----------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`   | Yes      | Claude API key — [console.anthropic.com](https://console.anthropic.com) |
+| `ESCROW_WALLET`       | Yes      | Stellar address that receives buyer payments                            |
+| `AGENT_WALLET_SECRET` | Yes      | Agent's Stellar secret key (signs outgoing seller payments)             |
+| `AGENT_WALLET_PUBLIC` | No       | Agent's Stellar public key (display only)                               |
+| `ESCROW_CONTRACT_ID`  | No       | Soroban contract address (for on-chain escrow integration)              |
+| `PLATFORM_FEE`        | No       | Platform cut as decimal (default: 0.05)                                 |
+| `PORT`                | No       | API port (default: 3001)                                                |
+| `FRONTEND_URL`        | No       | CORS origin (default: http://localhost:5173)                            |
 
 ---
 
 ## Design
 
-Afrofuturist aesthetic — luxury dark theme inspired by the Kente cloth geometric patterns of West Africa. The name *Hazina* (treasure in Swahili) reflects the untapped value in on-chain intelligence.
+Afrofuturist aesthetic — luxury dark theme inspired by the Kente cloth geometric patterns of West Africa. The name _Hazina_ (treasure in Swahili) reflects the untapped value in on-chain intelligence.
 
-| Token | Value |
-|-------|-------|
-| Background | `#0A0A0F` (void black) |
-| Accent | `#C9A84C` (gold) |
-| Heading font | Playfair Display |
-| Body font | DM Sans |
-| Cards | Glass morphism with gold borders |
-| Patterns | Kente-inspired SVG geometry |
+| Token        | Value                            |
+| ------------ | -------------------------------- |
+| Background   | `#0A0A0F` (void black)           |
+| Accent       | `#C9A84C` (gold)                 |
+| Heading font | Playfair Display                 |
+| Body font    | DM Sans                          |
+| Cards        | Glass morphism with gold borders |
+| Patterns     | Kente-inspired SVG geometry      |
