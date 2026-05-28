@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   Database,
   BarChart3,
@@ -142,20 +142,22 @@ export default function Navbar() {
 
           <div className="hidden xl:flex items-center gap-1.5 flex-nowrap">
             {NAV_LINKS.map(({ to, key, icon: Icon, dataTour }) => (
-              <Link
+              <NavLink
                 key={to}
                 to={to}
                 data-tour={dataTour}
-                className={clsx(
-                  "flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-xl text-sm font-medium font-body transition-all duration-200",
-                  pathname === to
-                    ? "bg-gold/15 text-gold border border-gold/25"
-                    : "text-foreground-muted hover:text-foreground hover:bg-surface-2",
-                )}
+                className={({ isActive }) =>
+                  clsx(
+                    "flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-xl text-sm font-medium font-body transition-all duration-200",
+                    isActive
+                      ? "bg-gold/15 text-gold border border-gold/25"
+                      : "text-foreground-muted hover:text-foreground hover:bg-surface-2",
+                  )
+                }
               >
                 <Icon className="w-4 h-4" aria-hidden="true" />
                 {t(key)}
-              </Link>
+              </NavLink>
             ))}
           </div>
 
@@ -292,17 +294,19 @@ export default function Navbar() {
 
             <div className="flex flex-col gap-2">
               {NAV_LINKS.map(({ to, key, icon: Icon, dataTour }) => (
-                <Link
+                <NavLink
                   key={to}
                   to={to}
                   data-tour={dataTour}
                   onClick={() => setMobileOpen(false)}
-                  className={clsx(
-                    "flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium font-body transition-all duration-200",
-                    pathname === to
-                      ? "bg-gold/15 text-gold border border-gold/25"
-                      : "text-foreground-muted hover:text-foreground hover:bg-surface-2 border border-transparent",
-                  )}
+                  className={({ isActive }) =>
+                    clsx(
+                      "flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium font-body transition-all duration-200",
+                      isActive
+                        ? "bg-gold/15 text-gold border border-gold/25"
+                        : "text-foreground-muted hover:text-foreground hover:bg-surface-2 border border-transparent",
+                    )
+                  }
                 >
                   <span className="flex min-w-0 items-center gap-3">
                     <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
@@ -311,7 +315,7 @@ export default function Navbar() {
                   <span className="text-gold/60 text-base" aria-hidden="true">
                     +
                   </span>
-                </Link>
+                </NavLink>
               ))}
             </div>
 

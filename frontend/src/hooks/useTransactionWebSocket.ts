@@ -57,6 +57,7 @@ export function useTransactionWebSocket(
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const reconnectAttemptsRef = useRef(0);
+  const pendingSubscriptionsRef = useRef<Array<{ datasetIds?: string[]; transactionIds?: string[] }>>([]);
   // Store callbacks in ref to avoid dependency issues
   const callbacksRef = useRef(callbacks);
   const maxReconnectAttempts = 5;
@@ -100,6 +101,17 @@ export function useTransactionWebSocket(
           ...(options.apiToken && { token: options.apiToken }),
         };
         ws.send(JSON.stringify(subscribeMsg));
+
+        // Flush any subscriptions that were requested while CONNECTING
+        pendingSubscriptionsRef.current.forEach((ids: { datasetIds?: string[]; transactionIds?: string[] }) => {
+          const msg = {
+            type: 'subscribe',
+            ...ids,
+            ...(options.apiToken && { token: options.apiToken }),
+          };
+          ws.send(JSON.stringify(msg));
+        });
+        pendingSubscriptionsRef.current = [];
       };
 
       ws.onmessage = event => {
@@ -181,7 +193,17 @@ export function useTransactionWebSocket(
    */
   const subscribe = useCallback(
     (ids: { datasetIds?: string[]; transactionIds?: string[] }): void => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      if (!wsRef.current) {
+        console.warn('[WebSocket] Not connected, cannot subscribe');
+        return;
+      }
+
+      if (wsRef.current.readyState === WebSocket.CONNECTING) {
+        pendingSubscriptionsRef.current.push(ids);
+        return;
+      }
+
+      if (wsRef.current.readyState !== WebSocket.OPEN) {
         console.warn('[WebSocket] Not connected, cannot subscribe');
         return;
       }

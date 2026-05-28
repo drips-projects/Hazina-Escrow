@@ -37,7 +37,8 @@ export function Skeleton({
       )}
       style={{
         width: width || (variant === "text" ? "100%" : undefined),
-        height: height || (variant === "circular" ? width : undefined),
+        minHeight: height || (variant === "circular" ? width : undefined),
+        height: variant === "circular" ? (height ?? width) : undefined,
       }}
     />
   );
