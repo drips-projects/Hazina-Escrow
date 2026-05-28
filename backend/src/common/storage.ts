@@ -3,6 +3,8 @@ import path from 'path';
 
 const DATA_PATH = path.join(__dirname, '../../../data/datasets.json');
 
+const DATA_PATH = process.env.DATA_PATH || path.resolve(process.cwd(), 'data/datasets.json');
+
 export interface Dataset {
   id: string;
   name: string;
