@@ -2,13 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockCreate = vi.fn();
 
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: {
-      create: mockCreate,
-    },
-  })),
-}));
+vi.mock('@anthropic-ai/sdk', () => {
+  class APITimeoutError extends Error {
+    constructor() {
+      super('Request timed out');
+      this.name = 'APITimeoutError';
+    }
+  }
+
+  const MockAnthropic = vi.fn().mockImplementation(() => ({
+    messages: { create: mockCreate },
+  })) as unknown as { new (): object; APITimeoutError: typeof APITimeoutError };
+  MockAnthropic.APITimeoutError = APITimeoutError;
+
+  return { default: MockAnthropic };
+});
 
 import {
   generateDataSummary,

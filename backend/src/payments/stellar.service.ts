@@ -9,10 +9,8 @@ const stellarBreaker = getCircuitBreaker('stellar-horizon', {
   resetTimeoutMs: 60_000, // 60 s
 });
 
-// Configurable via env; default 10 seconds as specified by the maintainer
-function getStellarTimeoutMs(): number {
-  return parseInt(process.env.STELLAR_TIMEOUT_MS ?? '10000', 10);
-}
+// Configurable via env; read per-call so tests can override it after module load
+const getStellarTimeoutMs = () => parseInt(process.env.STELLAR_TIMEOUT_MS ?? '10000', 10);
 
 interface VerifyParams {
   txHash: string;

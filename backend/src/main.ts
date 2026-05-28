@@ -8,7 +8,7 @@ initializeSentry();
 
 import 'express-async-errors';
 import express, { Request, Response, NextFunction } from 'express';
-import pino = require('pino');
+import pino from 'pino';
 import { randomUUID } from 'crypto';
 import cors from 'cors';
 import path from 'path';
@@ -32,6 +32,7 @@ import { createCompressionMiddleware } from './common/compression';
 import { initializeWebSocketServer } from './websocket/ws-server';
 import { HORIZON_URL } from './lib/stellar.config';
 import { createCorsOptions } from './common/cors';
+import { sanitizeBody } from './common/sanitize';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -128,6 +129,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 app.use(cors(createCorsOptions()));
 app.use(express.json({ limit: '2mb' }));
+app.use(sanitizeBody);
 Sentry.setupExpressErrorHandler(app);
 
 // Rate limiting — global + per-route limits for sensitive endpoints
@@ -307,15 +309,22 @@ app.use('/api', (req: Request, res: Response, next: NextFunction) => {
 });
 
 // Global error handling middleware — Issue #283 (standard error shape)
-app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
-  const status = err.status ?? 500;
-  const message = err.message || 'Internal server error';
-  console.error(`[Global Error Handler] [requestId=${req.id}]`, err);
-  Sentry.captureException(err);
-  res
-    .status(status)
-    .json({ error: message, code: err.code || 'INTERNAL_ERROR', requestId: req.id });
-});
+app.use(
+  (
+    err: Error & { status?: number; code?: string },
+    req: Request,
+    res: Response,
+    _next: NextFunction,
+  ) => {
+    const status = err.status ?? 500;
+    const message = err.message || 'Internal server error';
+    console.error(`[Global Error Handler] [requestId=${req.id}]`, err);
+    Sentry.captureException(err);
+    res
+      .status(status)
+      .json({ error: message, code: err.code || 'INTERNAL_ERROR', requestId: req.id });
+  },
+);
 
 startDeliveryRetryWorker();
 
