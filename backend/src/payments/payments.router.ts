@@ -8,16 +8,28 @@ import {
   getFailedDeliveryTransactions,
   txHashUsed,
   getUnpaidTransactions,
-} from '../common/storage';
-import { validateBody } from '../common/validate';
-import { sellerShare, platformFee as computePlatformFee } from '../common/constants';
-import { generateDataSummary } from '../ai/claude.service';
-import { sanitizeUserText } from '../common/sanitize';
-import { transactionEventEmitter } from '../websocket/transaction-events';
-import { requireAdminKey } from '../common/auth.middleware';
-import { deliverVerifiedPayment, markDeliveryFailure, processPayment } from './payments.service';
+} from "../common/storage";
+import { validateBody } from "../common/validate";
+import { sellerShare, platformFee as computePlatformFee } from "../common/constants";
+import { generateDataSummary } from "../ai/claude.service";
+import { sanitizeUserText } from "../common/sanitize";
+import { requireAdminKey } from "../common/auth.middleware";
+import {
+  getManualReviewPayouts,
+  recordPayoutFailure,
+  runDuePayoutRetries,
+  scheduleRetrySweep,
+} from "./payout-retry.service";
+import { transactionEventEmitter } from "../websocket/transaction-events";
+import { requireAdminKey } from "../common/auth.middleware";
+import {
+  deliverVerifiedPayment,
+  markDeliveryFailure,
+  processPayment,
+} from "./payments.service";
 
 export const paymentsRouter = Router();
+scheduleRetrySweep(1_000);
 
 const verifySchema = z.object({
   txHash: z.string().min(1),
@@ -241,6 +253,32 @@ export function stopDeliveryRetryWorker(): void {
   deliveryRetryWorker = null;
 }
 
+    // Forward 95% to seller on-chain
+    let sellerTxHash: string | undefined;
+    const sellerAmount = parseFloat((dataset.pricePerQuery * 0.95).toFixed(7));
+    try {
+      const payment = await sendUsdcPayment({
+        destinationAddress: dataset.sellerWallet,
+        amount: sellerAmount.toFixed(7),
+        memo: `hazina-${dataset.id.slice(0, 10)}`,
+      });
+      sellerTxHash = payment.txHash;
+      console.log(
+        `[Escrow] Paid seller ${sellerAmount} USDC → ${dataset.sellerWallet} (${sellerTxHash})`,
+      );
+    } catch (payErr) {
+      console.warn(
+        "[Escrow] Seller payment failed (data still delivered):",
+        payErr instanceof Error ? payErr.message : payErr,
+      );
+      await recordPayoutFailure({
+        datasetId: dataset.id,
+        sellerWallet: dataset.sellerWallet,
+        buyerTxHash: txHash,
+        intendedAmount: sellerAmount,
+        error: payErr instanceof Error ? payErr.message : String(payErr),
+      });
+    }
 // POST /api/verify/:id — verify payment on Stellar and release the dataset to the buyer
 paymentsRouter.post(
   '/verify/:id',
@@ -262,9 +300,35 @@ paymentsRouter.post(
         buyerQuestion,
       });
 
-      if (result.pendingDelivery) {
-        return res.status(202).json(result);
-      }
+// GET /api/admin/payouts/stuck — list payouts requiring manual review
+paymentsRouter.get("/admin/payouts/stuck", requireAdminKey, (_req: Request, res: Response) => {
+  return res.json({
+    payouts: getManualReviewPayouts(),
+  });
+});
+
+// POST /api/admin/payouts/retry — trigger retry sweep now
+paymentsRouter.post("/admin/payouts/retry", requireAdminKey, async (_req: Request, res: Response) => {
+  const processed = await runDuePayoutRetries();
+  scheduleRetrySweep(1_000);
+  return res.json({ success: true, processed });
+});
+
+// POST /api/verify/:id/demo — demo mode (skip Stellar check) for hackathon
+paymentsRouter.post("/verify/:id/demo", validateBody(verifyDemoSchema), async (req: Request, res: Response) => {
+  const { buyerQuestion } = req.body as z.infer<typeof verifyDemoSchema>;
+  const dataset = await getDataset(req.params.id);
+
+  if (!dataset) return res.status(404).json({ error: "Dataset not found" });
+
+  const transactionId = `tx-demo-id-${Date.now()}`; // Simplified for demo
+
+  // Emit verifying status
+  transactionEventEmitter.updateTransactionStatus(
+    transactionId,
+    dataset.id,
+    "verifying"
+  );
 
       return res.json({
         ...result,

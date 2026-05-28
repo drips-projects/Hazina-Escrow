@@ -51,6 +51,7 @@ const BASE_STORE: Store = {
   ],
   transactions: [],
   webhooks: [],
+  payoutFailures: [],
 };
 
 function makeApp(): Express {
@@ -89,6 +90,11 @@ describeSocket('payments and agent integration routes', () => {
     vi.restoreAllMocks();
     delete process.env.ESCROW_WALLET;
     delete process.env.ADMIN_API_KEY;
+
+    if (fs.existsSync(BACKUP_PATH)) {
+      fs.copyFileSync(BACKUP_PATH, DATA_PATH);
+      fs.unlinkSync(BACKUP_PATH);
+    }
     if (fs.existsSync(BACKUP_PATH)) { fs.copyFileSync(BACKUP_PATH, DATA_PATH); fs.unlinkSync(BACKUP_PATH); }
   });
 
@@ -119,6 +125,47 @@ describeSocket('payments and agent integration routes', () => {
     });
   });
 
+  it('persists failed seller payout for retries', async () => {
+    vi.mocked(sendUsdcPayment).mockRejectedValueOnce(new Error('temporary network error'));
+    const response = await request(app).post('/api/verify/ds-payment-1').send({
+      txHash: 'tx-failed-seller-payout',
+      buyerQuestion: 'What changed?',
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+
+    const persisted = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8')) as Store;
+    expect(persisted.payoutFailures).toHaveLength(1);
+    expect(persisted.payoutFailures[0]).toMatchObject({
+      datasetId: 'ds-payment-1',
+      buyerTxHash: 'tx-failed-seller-payout',
+      status: 'pending_retry',
+      retryCount: 0,
+    });
+  });
+
+  it('POST /api/verify/:id rejects replayed transaction hash', async () => {
+    writeStore({
+      ...BASE_STORE,
+      transactions: [
+        {
+          id: 'tx-replay',
+          datasetId: 'ds-payment-1',
+          txHash: 'tx-replayed',
+          amount: 1,
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    });
+
+    const response = await request(app).post('/api/verify/ds-payment-1').send({
+      txHash: 'tx-replayed',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('already used');
+    expect(verifyStellarPayment).not.toHaveBeenCalled();
   it('POST /api/v1/payments/verify/:id rejects replayed transaction hash', async () => {
     await writeStore({ ...BASE_STORE, transactions: [{ id: 'tx-1', datasetId: 'ds-payment-1', txHash: 'tx-used', amount: 1, sellerPaid: true, timestamp: new Date().toISOString() }] });
     const r = await request(app).post('/api/v1/payments/verify/ds-payment-1').send({ txHash: 'tx-used' });
@@ -149,6 +196,40 @@ describeSocket('payments and agent integration routes', () => {
     expect(r.body.transaction.deliveryStatus).toBe('failed');
   });
 
+  it('GET /api/admin/payouts/stuck lists manual review payouts', async () => {
+    writeStore({
+      ...BASE_STORE,
+      payoutFailures: [
+        {
+          id: 'pf-1',
+          datasetId: 'ds-payment-1',
+          sellerWallet: SELLER_WALLET,
+          buyerTxHash: 'tx-stuck',
+          intendedAmount: 0.95,
+          status: 'manual_review_needed',
+          retryCount: 3,
+          nextRetryAt: new Date().toISOString(),
+          lastError: 'all retries failed',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+    });
+    process.env.ADMIN_API_KEY = 'test-admin';
+
+    const response = await request(app)
+      .get('/api/admin/payouts/stuck')
+      .set('Authorization', 'Bearer test-admin');
+
+    expect(response.status).toBe(200);
+    expect(response.body.payouts).toHaveLength(1);
+    expect(response.body.payouts[0].status).toBe('manual_review_needed');
+  });
+
+  it('POST /api/agent/research/demo returns a valid report shape', async () => {
+    const response = await request(app).post('/api/agent/research/demo').send({
+      query: 'best low risk strategy',
+    });
   it('GET /api/v1/payments/admin/unpaid-sellers returns failed seller payouts', async () => {
     await writeStore({ ...BASE_STORE, transactions: [{ id: 'tx-unpaid-1', datasetId: 'ds-payment-1', txHash: 'escrow-99', amount: 1, sellerPaid: false, sellerAmount: 0.95, timestamp: new Date().toISOString() }] });
     const r = await request(app).get('/api/v1/payments/admin/unpaid-sellers').set('Authorization', 'Bearer admin-test-key');

@@ -57,8 +57,30 @@ export interface Store {
   datasets: Dataset[];
   transactions: Transaction[];
   webhooks: WebhookSubscription[];
+  payoutFailures: PayoutFailure[];
 }
 
+export type PayoutFailureStatus = 'pending_retry' | 'manual_review_needed' | 'paid';
+
+export interface PayoutFailure {
+  id: string;
+  datasetId: string;
+  sellerWallet: string;
+  buyerTxHash: string;
+  intendedAmount: number;
+  sellerTxHash?: string;
+  status: PayoutFailureStatus;
+  retryCount: number;
+  nextRetryAt: string;
+  lastError: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function ensureStore(): Store {
+  if (!fs.existsSync(DATA_PATH)) {
+    const empty: Store = { datasets: [], transactions: [], webhooks: [], payoutFailures: [] };
+    fs.writeFileSync(DATA_PATH, JSON.stringify(empty, null, 2), 'utf-8');
 // Serialize all mutations to prevent concurrent read-modify-write data loss
 let mutationQueue: Promise<void> = Promise.resolve();
 
@@ -74,6 +96,7 @@ async function readRaw(): Promise<Store> {
   const raw = await fs.readFile(DATA_PATH, 'utf-8');
   const parsed = JSON.parse(raw) as Partial<Store>;
   if (!parsed.webhooks) parsed.webhooks = [];
+  if (!parsed.payoutFailures) parsed.payoutFailures = [];
   return parsed as Store;
 }
 
@@ -261,6 +284,39 @@ export async function updateWebhook(
     store.webhooks[idx] = { ...store.webhooks[idx], ...updates };
     return [store, store.webhooks[idx]];
   });
+}
+
+export function addPayoutFailure(payoutFailure: PayoutFailure): void {
+  const store = readStore();
+  store.payoutFailures.push(payoutFailure);
+  writeStore(store);
+}
+
+export function getPayoutFailureByBuyerTxHash(buyerTxHash: string): PayoutFailure | undefined {
+  return readStore().payoutFailures.find((f) => f.buyerTxHash === buyerTxHash);
+}
+
+export function updatePayoutFailure(
+  id: string,
+  updates: Partial<PayoutFailure>,
+): PayoutFailure | null {
+  const store = readStore();
+  const idx = store.payoutFailures.findIndex((f) => f.id === id);
+  if (idx === -1) return null;
+  store.payoutFailures[idx] = { ...store.payoutFailures[idx], ...updates };
+  writeStore(store);
+  return store.payoutFailures[idx];
+}
+
+export function getPayoutFailuresByStatus(status: PayoutFailureStatus): PayoutFailure[] {
+  return readStore().payoutFailures.filter((f) => f.status === status);
+}
+
+export function getPendingPayoutFailures(nowIso: string): PayoutFailure[] {
+  const now = new Date(nowIso).getTime();
+  return readStore().payoutFailures.filter(
+    (f) => f.status === 'pending_retry' && new Date(f.nextRetryAt).getTime() <= now,
+  );
 }
 
 export async function getUnpaidTransactions(): Promise<Transaction[]> {

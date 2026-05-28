@@ -33,6 +33,7 @@ async function seedStore(overrides?: Partial<Store>): Promise<void> {
     datasets: [FIXTURE_DATASET],
     transactions: [],
     webhooks: [],
+    payoutFailures: [],
   };
   await writeStore({
     ...base,

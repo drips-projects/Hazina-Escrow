@@ -24,7 +24,7 @@ const seed = async () => {
     `Starting seeding... ${clean ? '(Cleaning existing data)' : '(Appending to existing data)'}`,
   );
 
-  const store: Store = clean ? { datasets: [], transactions: [], webhooks: [] } : await readStore();
+  const store: Store = clean ? { datasets: [], transactions: [], webhooks: [], payoutFailures: [] } : readStore();
 
   // Generate Datasets
   const numDatasets = 25;

@@ -7,6 +7,16 @@ The Soroban contract now supports:
 - An admin-controlled pause/unpause circuit breaker for emergencies
 - An admin-only upgrade path for swapping the current WASM executable
 - Invariant-focused verification tests that can be run independently
+- Buyer-confirmed release flow and expiry-based seller claims
+- `emergency_withdraw` for stuck tokens (admin-only, contract must be paused)
+
+## Emergency withdrawal policy
+
+`emergency_withdraw` is an escape hatch for stuck assets and is intentionally constrained:
+
+- Only the contract admin can call it.
+- The contract must be paused first.
+- Every withdrawal emits an `emerg_wd` event with `(token, to, amount)`.
 
 ## Input validation
 
